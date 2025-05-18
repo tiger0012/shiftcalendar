@@ -1,0 +1,84 @@
+<?xml version="1.0" encoding="utf-8"?>
+<androidx.constraintlayout.widget.ConstraintLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:id="@+id/main"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    tools:context=".MainActivity">
+
+    <TextView
+        android:id="@+id/titleTextView"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="16dp"
+        android:text="排班日历"
+        android:textSize="24sp"
+        android:textStyle="bold"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toTopOf="parent" />
+
+    <!-- 月份导航和显示 -->
+    <LinearLayout
+        android:id="@+id/month_navigation_layout"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:gravity="center_vertical"
+        android:padding="8dp"
+        app:layout_constraintTop_toBottomOf="@id/titleTextView"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toEndOf="parent">
+
+        <Button
+            android:id="@+id/btn_previous_month"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="上个月"/>
+
+        <TextView
+            android:id="@+id/tv_current_month"
+            android:layout_width="0dp"
+            android:layout_weight="1"
+            android:layout_height="wrap_content"
+            android:gravity="center"
+            android:textSize="18sp"
+            android:textStyle="bold"
+            tools:text="2025年5月"/>
+
+        <Button
+            android:id="@+id/btn_next_month"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="下个月"/>
+
+    </LinearLayout>
+
+    <LinearLayout
+        android:id="@+id/calendar_container"
+        android:layout_width="0dp"
+        android:layout_height="0dp"
+        android:orientation="horizontal"
+        app:layout_constraintTop_toBottomOf="@id/month_navigation_layout"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toEndOf="parent">
+
+        <androidx.recyclerview.widget.RecyclerView
+            android:id="@+id/rv_weeknum_column"
+            android:layout_width="40dp"
+            android:layout_height="match_parent"
+            android:padding="0dp"
+            tools:listitem="@layout/item_weeknum_column"/>
+
+        <androidx.recyclerview.widget.RecyclerView
+            android:id="@+id/rv_shift_calendar"
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_weight="1"
+            android:padding="4dp"
+            tools:listitem="@layout/item_calendar_day"/>
+    </LinearLayout>
+
+</androidx.constraintlayout.widget.ConstraintLayout>
