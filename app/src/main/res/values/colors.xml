@@ -2,4 +2,15 @@
 <resources>
     <color name="black">#FF000000</color>
     <color name="white">#FFFFFFFF</color>
+    
+    <!-- 班组背景色 -->
+    <color name="team_1">#DA9694</color>
+    <color name="team_2">#CD621B</color>
+    <color name="team_3">#3399FF</color>
+    <color name="team_4">#00B050</color>
+    <color name="team_5">#88BFBF</color>
+    <color name="team_6">#FFFF00</color>
+    <color name="team_7">#FFCC00</color>
+
+    <color name="team_default">#BDBDBD</color>
 </resources>

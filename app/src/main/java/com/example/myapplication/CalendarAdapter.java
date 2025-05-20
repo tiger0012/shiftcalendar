@@ -1,14 +1,21 @@
 package com.example.myapplication;
 
 import android.graphics.Color;
+import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
+import android.widget.LinearLayout;
 import android.widget.TextView;
 
 import androidx.recyclerview.widget.RecyclerView;
+import android.text.TextUtils;
+import androidx.core.content.ContextCompat;
 
 import java.util.List;
+import java.util.Locale;
+import java.util.Map;
+import java.util.HashMap;
 
 public class CalendarAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
     private static final int VIEW_TYPE_WEEKNUM_HEADER = 0;
@@ -53,9 +60,24 @@ public void onBindViewHolder(RecyclerView.ViewHolder holder, int position) {
         // 从数据源获取实际周数
         int weekIndex = position / 8;
         int actualPosition = weekIndex * 7;
-        if (actualPosition < days.size()) {
+        
+        // 处理跨月周数显示
+        if (weekIndex == 0 && days.get(0).dayOfWeek != 1) {
+            String weeknumValue = days.get(0).prevMonthLastWeeknum;
+            if (TextUtils.isEmpty(weeknumValue)) {
+    weeknumHolder.tvWeeknum.setVisibility(View.GONE);
+} else {
+    weeknumHolder.tvWeeknum.setVisibility(View.VISIBLE);
+    weeknumHolder.tvWeeknum.setText(String.format(Locale.getDefault(), "第%s周", weeknumValue));
+}
+        } else if (actualPosition < days.size()) {
             String weeknumValue = days.get(actualPosition).weeknum;
-            weeknumHolder.tvWeeknum.setText(weeknumValue != null ? "Week " + weeknumValue : "");
+            if (TextUtils.isEmpty(weeknumValue)) {
+                weeknumHolder.tvWeeknum.setVisibility(View.GONE);
+            } else {
+                weeknumHolder.tvWeeknum.setVisibility(View.VISIBLE);
+                weeknumHolder.tvWeeknum.setText(String.format(Locale.getDefault(), "第%s周", weeknumValue));
+            }
         }
         weeknumHolder.tvDayShiftTitle.setText("白班");
         weeknumHolder.tvNightShiftTitle.setText("夜班");
@@ -67,16 +89,46 @@ public void onBindViewHolder(RecyclerView.ViewHolder holder, int position) {
 
         if (day.getIsEmpty()) {
             dayHolder.tvDay.setText("");
-            dayHolder.tvTeams.setText("");
+            if (dayHolder.tvDayTeams != null) dayHolder.tvDayTeams.setText("");
+            if (dayHolder.tvNightTeams != null) dayHolder.tvNightTeams.setText("");
             dayHolder.itemView.setBackgroundColor(Color.TRANSPARENT);
         } else {
-            dayHolder.tvDay.setText(String.valueOf(day.dayOfMonth));
-            StringBuilder sb = new StringBuilder();
-            if (!day.dayTeams.isEmpty()) sb.append("白:").append(joinTeams(day.dayTeams)).append(" ");
-            if (!day.nightTeams.isEmpty()) sb.append("夜:").append(joinTeams(day.nightTeams));
-            dayHolder.tvTeams.setText(sb.toString().trim());
-            // 高亮今天
-            dayHolder.tvDay.setTextColor(day.isToday ? Color.RED : Color.BLACK);
+            if (!day.getIsEmpty()) {
+                dayHolder.tvDay.setText(String.valueOf(day.dayOfMonth));
+                
+                // 动态创建白班班组视图
+                Log.d("ShiftDebug", "白班数据：" + day.dayTeams.toString());
+                dayHolder.teamContainerDay.removeAllViews();
+                for (String team : day.dayTeams) {
+                    TextView teamView = new TextView(dayHolder.itemView.getContext());
+            teamView.setLayoutParams(new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT, 1.0f));
+            teamView.setTextSize(12);
+            teamView.setPadding(4, 2, 4, 2);
+                    teamView.setText(team);
+                    setTeamBackground(teamView, team);
+                    dayHolder.teamContainerDay.addView(teamView);
+                }
+                
+                // 动态创建夜班班组视图
+                Log.d("ShiftDebug", "夜班数据：" + day.nightTeams.toString());
+                dayHolder.teamContainerNight.removeAllViews();
+                for (String team : day.nightTeams) {
+                    TextView teamView = new TextView(dayHolder.itemView.getContext());
+            teamView.setLayoutParams(new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT, 1.0f));
+            teamView.setTextSize(12);
+            teamView.setPadding(4, 2, 4, 2);
+                    teamView.setText(team);
+                    setTeamBackground(teamView, team);
+                    dayHolder.teamContainerNight.addView(teamView);
+                }
+                
+                // 高亮今天
+                dayHolder.tvDay.setTextColor(day.isToday ? Color.RED : Color.BLACK);
+            }
         }
     }
 }
@@ -102,15 +154,39 @@ public void onBindViewHolder(RecyclerView.ViewHolder holder, int position) {
         }
     }
 
-    static class DayViewHolder extends RecyclerView.ViewHolder {
-        TextView tvDay, tvTeams;
-
-        DayViewHolder(View itemView) {
-            super(itemView);
-            tvDay = itemView.findViewById(R.id.tv_day);
-            tvTeams = itemView.findViewById(R.id.tv_day_teams);
-        }
+    private static final Map<String, Integer> TEAM_COLOR_MAP = new HashMap<>();
+    static {
+        TEAM_COLOR_MAP.put("1", R.color.team_1);
+        TEAM_COLOR_MAP.put("2", R.color.team_2);
+        TEAM_COLOR_MAP.put("3", R.color.team_3);
+        TEAM_COLOR_MAP.put("4", R.color.team_4);
+        TEAM_COLOR_MAP.put("5", R.color.team_5);
+        TEAM_COLOR_MAP.put("6", R.color.team_6);
+        TEAM_COLOR_MAP.put("7", R.color.team_7);
     }
+
+    private void setTeamBackground(TextView textView, String team) {
+        String teamNumber = team.replaceAll("\\D+", "");
+        int teamIndex = (Integer.parseInt(teamNumber.isEmpty() ? "0" : teamNumber) - 1) % 7 + 1;
+        Integer colorRes = TEAM_COLOR_MAP.getOrDefault(String.valueOf(teamIndex), R.color.team_default);
+        textView.setBackgroundColor(ContextCompat.getColor(textView.getContext(), colorRes));
+        textView.setPadding(8, 4, 8, 4);
+        textView.setTextColor(ContextCompat.getColor(textView.getContext(), R.color.black));
+    }
+
+static class DayViewHolder extends RecyclerView.ViewHolder {
+    TextView tvDay, tvDayTeams, tvNightTeams;
+    LinearLayout teamContainerDay, teamContainerNight;
+
+    DayViewHolder(View itemView) {
+        super(itemView);
+        tvDay = itemView.findViewById(R.id.tv_day);
+        tvDayTeams = itemView.findViewById(R.id.tv_day_teams);
+        tvNightTeams = itemView.findViewById(R.id.tv_night_teams);
+        teamContainerDay = itemView.findViewById(R.id.teamContainerDay);
+        teamContainerNight = itemView.findViewById(R.id.teamContainerNight);
+    }
+}
 
     private String joinTeams(List<String> teams) {
         StringBuilder sb = new StringBuilder();

@@ -38,6 +38,22 @@ public class MainActivity extends AppCompatActivity {
 
     private Map<String, DayShiftGroup> allData;
 
+    // 新增类级别方法获取上月最后周数
+    private String getPreviousMonthLastWeeknum(int year, int month) {
+        try {
+            Calendar cal = Calendar.getInstance();
+            cal.set(year, month - 2, 1); // 上个月
+            String lastDayOfPrevMonth = new SimpleDateFormat("yyyy-MM-dd", Locale.getDefault())
+                .format(cal.getActualMaximum(Calendar.DAY_OF_MONTH));
+            
+            DayShiftGroup group = allData.get(lastDayOfPrevMonth);
+            return group != null && group.weeknum != null ? group.weeknum : "";
+        } catch (Exception e) {
+            e.printStackTrace();
+            return "";
+        }
+    }
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -176,11 +192,18 @@ public class MainActivity extends AppCompatActivity {
         int firstDayOfWeek = cal.get(Calendar.DAY_OF_WEEK);
         int daysInMonth = cal.getActualMaximum(Calendar.DAY_OF_MONTH);
 
+        // 在生成日历数据时处理跨月周数
         for (int i = 1; i < firstDayOfWeek; i++) {
             CalendarDay empty = new CalendarDay();
             empty.isEmpty = true;
+            empty.date = Calendar.getInstance(); // 初始化Calendar对象
+            empty.date = Calendar.getInstance(); // 初始化Calendar对象
+            // 设置上个月最后一周周数
+            empty.prevMonthLastWeeknum = getPreviousMonthLastWeeknum(year, month);
             result.add(empty);
         }
+
+        // 移除此处的方法定义
 
         SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd", Locale.getDefault());
         Calendar today = Calendar.getInstance();
@@ -188,7 +211,8 @@ public class MainActivity extends AppCompatActivity {
             cal.set(year, month - 1, d);
             String dateStr = sdf.format(cal.getTime());
             CalendarDay day = new CalendarDay();
-            day.date = dateStr;
+            day.date = cal;
+            day.dateStr = dateStr;
             day.dayOfMonth = d;
             day.isToday = (today.get(Calendar.YEAR) == year && today.get(Calendar.MONTH) == month - 1 && today.get(Calendar.DAY_OF_MONTH) == d);
             DayShiftGroup group = allData.get(dateStr);
@@ -203,30 +227,40 @@ public class MainActivity extends AppCompatActivity {
         while (result.size() % 7 != 0) {
             CalendarDay empty = new CalendarDay();
             empty.isEmpty = true;
+            empty.date = Calendar.getInstance(); // 初始化Calendar对象
+            empty.date = Calendar.getInstance(); // 初始化Calendar对象
             result.add(empty);
         }
         return result;
     }
 
     private List<String> generateWeeknumColumn(List<CalendarDay> days) {
-        List<String> result = new ArrayList<>();
-        int total = days.size();
-        for (int i = 0; i < total; i++) {
-            if (i % 7 == 0) {
-                // 找到本周第一个有weeknum的日期
-                String weeknum = "";
-                for (int j = 0; j < 7 && (i + j) < total; j++) {
-                    CalendarDay day = days.get(i + j);
-                    if (day.weeknum != null && !day.weeknum.isEmpty()) {
-                        weeknum = day.weeknum;
-                        break;
-                    }
+    List<String> result = new ArrayList<>();
+    int currentMonth = -1;
+    String prevWeeknum = "";
+    
+    for (int i = 0; i < days.size(); i++) {
+        if (i % 7 == 0) {
+            CalendarDay day = days.get(i);
+            String weeknum = "";
+            
+            // 处理跨月周数
+            if (day.isEmpty && !day.prevMonthLastWeeknum.isEmpty()) {
+                weeknum = "Week" + day.prevMonthLastWeeknum;
+            } else if (day.weeknum != null && !day.weeknum.isEmpty()) {
+                weeknum = "Week" + day.weeknum;
+                // 当月份变化时更新当前月份
+                if (day.date.get(Calendar.MONTH) + 1 != currentMonth) {
+                    currentMonth = day.date.get(Calendar.MONTH) + 1;
                 }
-                result.add(weeknum);
-            } else {
-                result.add("");
             }
+            
+            // 添加非空周数到结果
+            result.add(weeknum);
+        } else {
+            result.add("");
         }
-        return result;
     }
+    return result;
+}
 }

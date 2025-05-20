@@ -20,9 +20,9 @@
         android:id="@+id/tv_day_shift"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:text="D:1"
+        android:text="1"
         android:textSize="10sp"
-        android:textColor="#1976D2"
+        android:textColor="@android:color/black"
         app:layout_constraintTop_toBottomOf="@id/tv_date"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintEnd_toEndOf="parent"/>
@@ -31,9 +31,9 @@
         android:id="@+id/tv_night_shift"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:text="N:4"
+        android:text="4"
         android:textSize="10sp"
-        android:textColor="#E65100"
+        android:textColor="@android:color/black"
         app:layout_constraintTop_toBottomOf="@id/tv_day_shift"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintEnd_toEndOf="parent"/>
@@ -49,4 +49,4 @@
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintEnd_toEndOf="parent"/>
 
-</androidx.constraintlayout.widget.ConstraintLayout> 
+</androidx.constraintlayout.widget.ConstraintLayout>
