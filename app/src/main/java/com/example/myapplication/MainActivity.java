@@ -21,6 +21,10 @@ import java.io.BufferedReader;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.text.SimpleDateFormat;
+import java.time.*;
+import java.time.format.TextStyle;
+import java.time.format.DateTimeFormatter;
+import java.time.temporal.TemporalAdjusters;
 import java.util.*;
 import java.text.ParseException;
 
@@ -35,18 +39,16 @@ public class MainActivity extends AppCompatActivity {
 
     private int currentYear;
     private int currentMonth;
-    private Calendar mCalendar;
+    private LocalDate currentDate;
 
     private Map<String, DayShiftGroup> allData;
 
     // 新增类级别方法获取上月最后周数
     private String getPreviousMonthLastWeeknum(int year, int month) {
         try {
-            Calendar cal = Calendar.getInstance();
-            cal.set(year, month - 2, 1); // 修正为上个月的第一天（月份减2，因为Calendar.MONTH是0-based）
-            int lastDay = cal.getActualMaximum(Calendar.DAY_OF_MONTH);
-            cal.set(year, month - 2, lastDay); // 设置为上个月的最后一天
-            String lastDayOfPrevMonth = new SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(cal.getTime());
+            LocalDate firstDayOfPrevMonth = LocalDate.of(year, month - 1, 1).minusMonths(1);
+            LocalDate lastDayOfPrevMonth = firstDayOfPrevMonth.with(TemporalAdjusters.lastDayOfMonth());
+            String formattedLastDayOfPrevMonth = DateTimeFormatter.ofPattern("yyyy-MM-dd", Locale.getDefault()).format(lastDayOfPrevMonth);
             
             DayShiftGroup group = allData.get(lastDayOfPrevMonth);
             return group != null && group.weeknum != null ? group.weeknum : "";
@@ -84,9 +86,9 @@ public class MainActivity extends AppCompatActivity {
         allData = readShiftGroupsFromCSV();
 
         // 2. 初始化显示为当前月份
-        mCalendar = Calendar.getInstance();
-        currentYear = mCalendar.get(Calendar.YEAR);
-        currentMonth = mCalendar.get(Calendar.MONTH) + 1; // Calendar.MONTH 是 0-based
+        currentDate = LocalDate.now();
+        currentYear = currentDate.getYear();
+        currentMonth = currentDate.getMonthValue();
 
         // 3. 更新日历显示
         updateCalendarDisplay();
@@ -108,7 +110,7 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private void updateCalendarDisplay() {
-        String monthName = new java.text.DateFormatSymbols(Locale.ENGLISH).getMonths()[currentMonth-1];
+        String monthName = Month.of(currentMonth).getDisplayName(TextStyle.FULL, Locale.ENGLISH);
         tvCurrentMonth.setText(currentYear + " " + monthName);
 
         List<CalendarDay> days = generateMonthCalendar(currentYear, currentMonth, allData);
@@ -125,11 +127,9 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private void navigateMonth(int monthOffset) {
-        mCalendar.set(currentYear, currentMonth - 1, 1);
-        mCalendar.add(Calendar.MONTH, monthOffset);
-
-        currentYear = mCalendar.get(Calendar.YEAR);
-        currentMonth = mCalendar.get(Calendar.MONTH) + 1;
+        currentDate = currentDate.withDayOfMonth(1).plusMonths(monthOffset);
+        currentYear = currentDate.getYear();
+        currentMonth = currentDate.getMonthValue();
 
         updateCalendarDisplay();
     }
@@ -199,17 +199,16 @@ public class MainActivity extends AppCompatActivity {
 
     private List<CalendarDay> generateMonthCalendar(int year, int month, Map<String, DayShiftGroup> allData) {
         List<CalendarDay> result = new ArrayList<>();
-        Calendar cal = Calendar.getInstance();
-        cal.set(year, month - 1, 1);
-        int firstDayOfWeek = cal.get(Calendar.DAY_OF_WEEK);
-        int daysInMonth = cal.getActualMaximum(Calendar.DAY_OF_MONTH);
+        LocalDate firstDayOfMonth = LocalDate.of(year, month, 1);
+        int firstDayOfWeek = firstDayOfMonth.getDayOfWeek().getValue() % 7 + 1; // 转换为Calendar的周日=1格式
+        int daysInMonth = firstDayOfMonth.lengthOfMonth();
 
         // 在生成日历数据时处理跨月周数
         for (int i = 1; i < firstDayOfWeek; i++) {
             CalendarDay empty = new CalendarDay();
             empty.isEmpty = true;
-            empty.date = Calendar.getInstance(); // 初始化Calendar对象
-            empty.date = Calendar.getInstance(); // 初始化Calendar对象
+            empty.dateStr = LocalDate.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd", Locale.getDefault()));
+            empty.dateStr = LocalDate.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd", Locale.getDefault()));
             // 清空班组信息
             empty.dayTeams = new ArrayList<>();
             empty.nightTeams = new ArrayList<>();
@@ -221,16 +220,16 @@ public class MainActivity extends AppCompatActivity {
 
         // 移除此处的方法定义
 
-        SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd", Locale.getDefault());
-        Calendar today = Calendar.getInstance();
+        DateTimeFormatter dateFormatter = DateTimeFormatter.ofPattern("yyyy-MM-dd", Locale.getDefault());
+        LocalDate today = LocalDate.now();
         for (int d = 1; d <= daysInMonth; d++) {
-            cal.set(year, month - 1, d);
-            String dateStr = sdf.format(cal.getTime());
+            LocalDate date = LocalDate.of(year, month, d);
+            String dateStr = dateFormatter.format(date);
             CalendarDay day = new CalendarDay();
-            day.date = cal;
+            day.date = date;
             day.dateStr = dateStr;
             day.dayOfMonth = d;
-            day.isToday = (today.get(Calendar.YEAR) == year && today.get(Calendar.MONTH) == month - 1 && today.get(Calendar.DAY_OF_MONTH) == d);
+            day.isToday = today.equals(date);
             DayShiftGroup group = allData.get(dateStr);
             if (group != null) {
                 day.dayTeams = group.dayTeams;
@@ -243,8 +242,8 @@ public class MainActivity extends AppCompatActivity {
         while (result.size() % 7 != 0) {
             CalendarDay empty = new CalendarDay();
             empty.isEmpty = true;
-            empty.date = Calendar.getInstance(); // 初始化Calendar对象
-            empty.date = Calendar.getInstance(); // 初始化Calendar对象
+            empty.dateStr = LocalDate.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd", Locale.getDefault()));
+            empty.dateStr = LocalDate.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd", Locale.getDefault()));
             // 清空班组信息
             empty.dayTeams = new ArrayList<>();
             empty.nightTeams = new ArrayList<>();
@@ -268,10 +267,9 @@ public class MainActivity extends AppCompatActivity {
                 weeknum = "Week" + day.prevMonthLastWeeknum;
             } else if (day.weeknum != null && !day.weeknum.isEmpty()) {
                 weeknum = "Week" + day.weeknum;
-                // 当月份变化时更新当前月份
-                if (day.date.get(Calendar.MONTH) + 1 != currentMonth) {
-                    currentMonth = day.date.get(Calendar.MONTH) + 1;
-                }
+            } else if ((i == 0 || days.get(i-1).date.getMonthValue() != day.date.getMonthValue()) && day.weeknum != null) {
+                // 处理月初第一周
+                weeknum = "Week" + day.weeknum;
             }
             
             // 添加非空周数到结果

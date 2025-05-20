@@ -75,22 +75,36 @@ private void precomputeWeeknumCache() {
             (actualPosition > 0 && days.get(actualPosition).month != days.get(actualPosition - 1).month);
             
         if (isMonthStartWeek) {
+            // 优先检查是否有跨月的上个月天数
             boolean hasPrevMonthDays = days.subList(actualPosition, Math.min(actualPosition + 7, days.size()))
                 .stream().anyMatch(d -> d.isPrevMonth);
                 
+            // 如果是月初第一周，优先使用上个月最后一周的周数
             if (hasPrevMonthDays) {
-                return days.subList(actualPosition, Math.min(actualPosition + 7, days.size()))
+                String prevWeeknum = days.subList(actualPosition, Math.min(actualPosition + 7, days.size()))
                     .stream()
                     .filter(d -> d.isPrevMonth && !TextUtils.isEmpty(d.prevMonthLastWeeknum))
                     .findFirst()
                     .map(d -> d.prevMonthLastWeeknum)
                     .orElse("");
-            } else {
-                for (int i = actualPosition; i < Math.min(actualPosition + 7, days.size()); i++) {
-                    CalendarDay day = days.get(i);
-                    if (!TextUtils.isEmpty(day.weeknum)) {
-                        return day.weeknum;
-                    }
+                if (!TextUtils.isEmpty(prevWeeknum)) {
+                    return prevWeeknum;
+                }
+            }
+            
+            // 检查当前周是否有周数
+            for (int i = actualPosition; i < Math.min(actualPosition + 7, days.size()); i++) {
+                CalendarDay day = days.get(i);
+                if (!TextUtils.isEmpty(day.weeknum)) {
+                    return day.weeknum;
+                }
+            }
+            
+            // 如果没有周数，检查是否是跨月周
+            if (actualPosition > 0 && days.get(actualPosition).month != days.get(actualPosition - 1).month) {
+                CalendarDay prevDay = days.get(actualPosition - 1);
+                if (!TextUtils.isEmpty(prevDay.weeknum)) {
+                    return prevDay.weeknum;
                 }
             }
         } else if (actualPosition < days.size()) {

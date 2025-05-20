@@ -1,13 +1,14 @@
 package com.example.myapplication;
 
+import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.Calendar;
 import java.util.List;
 
 public class CalendarDay {
-    public Calendar date;
+    public LocalDate date;
 
-    public Calendar getDate() {
+    public LocalDate getDate() {
         return date;
     }
 
