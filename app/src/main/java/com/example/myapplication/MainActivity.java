@@ -35,6 +35,7 @@ public class MainActivity extends AppCompatActivity {
 
     private int currentYear;
     private int currentMonth;
+    private Calendar mCalendar;
 
     private Map<String, DayShiftGroup> allData;
 
@@ -63,22 +64,29 @@ public class MainActivity extends AppCompatActivity {
 
         rvShiftCalendar = findViewById(R.id.rv_shift_calendar);
         rvWeeknumColumn = findViewById(R.id.rv_weeknum_column);
+        RecyclerView rvWeekdayHeader = findViewById(R.id.rv_weekday_header);
         tvCurrentMonth = findViewById(R.id.tv_current_month);
         btnPreviousMonth = findViewById(R.id.btn_previous_month);
         btnNextMonth = findViewById(R.id.btn_next_month);
 
         rvShiftCalendar.setLayoutManager(new GridLayoutManager(this, 8)); // 8列（7天+周数标题）
         rvWeeknumColumn.setLayoutManager(new GridLayoutManager(this, 8));
+        rvWeekdayHeader.setLayoutManager(new LinearLayoutManager(this, LinearLayoutManager.HORIZONTAL, false));
         weeknumColumnAdapter = new WeeknumColumnAdapter(new ArrayList<>());
         rvWeeknumColumn.setAdapter(weeknumColumnAdapter);
+        
+        // 初始化周几标题适配器
+        List<String> weekdays = Arrays.asList("周日", "周一", "周二", "周三", "周四", "周五", "周六");
+        WeekdayHeaderAdapter weekdayHeaderAdapter = new WeekdayHeaderAdapter(weekdays);
+        rvWeekdayHeader.setAdapter(weekdayHeaderAdapter);
 
         // 1. 读取CSV，转为Map<String, DayShiftGroup> (只读一次)
         allData = readShiftGroupsFromCSV();
 
         // 2. 初始化显示为当前月份
-        Calendar cal = Calendar.getInstance();
-        currentYear = cal.get(Calendar.YEAR);
-        currentMonth = cal.get(Calendar.MONTH) + 1; // Calendar.MONTH 是 0-based
+        mCalendar = Calendar.getInstance();
+        currentYear = mCalendar.get(Calendar.YEAR);
+        currentMonth = mCalendar.get(Calendar.MONTH) + 1; // Calendar.MONTH 是 0-based
 
         // 3. 更新日历显示
         updateCalendarDisplay();
@@ -100,7 +108,8 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private void updateCalendarDisplay() {
-        tvCurrentMonth.setText(currentYear + "年" + currentMonth + "月");
+        String monthName = new java.text.DateFormatSymbols(Locale.ENGLISH).getMonths()[currentMonth-1];
+        tvCurrentMonth.setText(currentYear + " " + monthName);
 
         List<CalendarDay> days = generateMonthCalendar(currentYear, currentMonth, allData);
         List<String> weeknumColumn = generateWeeknumColumn(days);
@@ -116,12 +125,11 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private void navigateMonth(int monthOffset) {
-        Calendar cal = Calendar.getInstance();
-        cal.set(currentYear, currentMonth - 1, 1);
-        cal.add(Calendar.MONTH, monthOffset);
+        mCalendar.set(currentYear, currentMonth - 1, 1);
+        mCalendar.add(Calendar.MONTH, monthOffset);
 
-        currentYear = cal.get(Calendar.YEAR);
-        currentMonth = cal.get(Calendar.MONTH) + 1;
+        currentYear = mCalendar.get(Calendar.YEAR);
+        currentMonth = mCalendar.get(Calendar.MONTH) + 1;
 
         updateCalendarDisplay();
     }
@@ -131,14 +139,21 @@ public class MainActivity extends AppCompatActivity {
         SimpleDateFormat csvDateFormat = new SimpleDateFormat("yyyy/M/d", Locale.getDefault());
         SimpleDateFormat targetDateFormat = new SimpleDateFormat("yyyy-MM-dd", Locale.getDefault());
 
-        try {
-            InputStream is = getAssets().open("shift.csv");
-            BufferedReader reader = new BufferedReader(new InputStreamReader(is, "UTF-8"));
+        try (InputStream is = getAssets().open("shift.csv");
+             BufferedReader reader = new BufferedReader(new InputStreamReader(is, "UTF-8"))) {
+            
             String line;
             boolean isFirst = true;
             int weeknumIndex = -1;
+            
+            // 预分配缓冲区
+            StringBuilder lineBuilder = new StringBuilder(256);
+            
             while ((line = reader.readLine()) != null) {
-                String[] tokens = line.split(",");
+                lineBuilder.setLength(0);
+                lineBuilder.append(line);
+                
+                String[] tokens = lineBuilder.toString().split(",");
                 if (isFirst) {
                     // 查找Weeknum列索引
                     for (int i = 0; i < tokens.length; i++) {
@@ -165,7 +180,7 @@ public class MainActivity extends AppCompatActivity {
 
                 String dayNight = tokens[3].trim();
                 String team = tokens[2].trim();
-                DayShiftGroup group = map.getOrDefault(date, new DayShiftGroup());
+                DayShiftGroup group = map.computeIfAbsent(date, k -> new DayShiftGroup());
                 group.date = date;
                 group.weeknum = weeknum;
 
@@ -174,15 +189,11 @@ public class MainActivity extends AppCompatActivity {
                 } else {
                     if (!group.nightTeams.contains(team)) group.nightTeams.add(team);
                 }
-                map.put(date, group);
             }
-            reader.close();
         } catch (Exception e) {
             e.printStackTrace();
         }
-        Log.d("DATA_RANGE", "Data map size: " + map.size());
-        String testDate = "2025-05-18";
-        Log.d("DATA_RANGE", "Does map contain key " + testDate + "? " + map.containsKey(testDate));
+        
         return map;
     }
 

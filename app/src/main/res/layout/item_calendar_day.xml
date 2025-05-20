@@ -20,7 +20,8 @@
         android:textSize="12sp"
         android:textStyle="bold"
         android:padding="1dp"
-        android:textColor="@android:color/black"/>
+        android:textColor="@android:color/black"
+        android:background="@drawable/day_highlight_selector"/>
 
     <LinearLayout
         android:layout_width="match_parent"

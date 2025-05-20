@@ -1,5 +1,6 @@
 package com.example.myapplication;
 
+import android.content.Context;
 import android.graphics.Color;
 import android.util.Log;
 import android.view.LayoutInflater;
@@ -22,13 +23,16 @@ public class CalendarAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolde
     private static final int VIEW_TYPE_DAY = 1;
 
     private List<CalendarDay> days;
+    private Map<Integer, String> weeknumCache = new HashMap<>();
 
     public CalendarAdapter(List<CalendarDay> days) {
         this.days = days;
+        precomputeWeeknumCache();
     }
 
     public void updateData(List<CalendarDay> newDays) {
         this.days = newDays;
+        precomputeWeeknumCache();
         notifyDataSetChanged();
     }
 
@@ -52,60 +56,62 @@ public class CalendarAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolde
         }
     }
 
-@Override
-public void onBindViewHolder(RecyclerView.ViewHolder holder, int position) {
-    int viewType = getItemViewType(position);
-    if (viewType == VIEW_TYPE_WEEKNUM_HEADER) {
-        WeeknumHeaderViewHolder weeknumHolder = (WeeknumHeaderViewHolder) holder;
-        // 从数据源获取实际周数
-        int weekIndex = position / 8;
+private void precomputeWeeknumCache() {
+        weeknumCache.clear();
+        if (days == null || days.isEmpty()) return;
+        
+        for (int i = 0; i < days.size(); i += 7) {
+            int weekIndex = i / 7;
+            String weeknumValue = computeWeeknumForPosition(i);
+            weeknumCache.put(weekIndex, weeknumValue);
+        }
+    }
+    
+    private String computeWeeknumForPosition(int position) {
+        int weekIndex = position / 7;
         int actualPosition = weekIndex * 7;
         
-        // 处理跨月周数显示（优化首周非周一的情况）
-        // 判断当前周是否为新月份的首周（可能跨月）
-        boolean isMonthStartWeek = weekIndex == 0 || (actualPosition > 0 && days.get(actualPosition).month != days.get(actualPosition - 1).month);
+        boolean isMonthStartWeek = weekIndex == 0 || 
+            (actualPosition > 0 && days.get(actualPosition).month != days.get(actualPosition - 1).month);
+            
         if (isMonthStartWeek) {
-            // 检查当前周是否存在上月日期（本月首日非周一的情况）
-            boolean hasPrevMonthDays = days.subList(actualPosition, Math.min(actualPosition + 7, days.size())).stream().anyMatch(d -> d.isPrevMonth);
+            boolean hasPrevMonthDays = days.subList(actualPosition, Math.min(actualPosition + 7, days.size()))
+                .stream().anyMatch(d -> d.isPrevMonth);
+                
             if (hasPrevMonthDays) {
-                // 获取当前周内第一个有有效周数的跨月日期的上月周数
-                String weeknumValue = days.subList(actualPosition, Math.min(actualPosition + 7, days.size())).stream()
-                    .filter(d -> d.isPrevMonth && !TextUtils.isEmpty(d.prevMonthLastWeeknum)) 
+                return days.subList(actualPosition, Math.min(actualPosition + 7, days.size()))
+                    .stream()
+                    .filter(d -> d.isPrevMonth && !TextUtils.isEmpty(d.prevMonthLastWeeknum))
                     .findFirst()
                     .map(d -> d.prevMonthLastWeeknum)
                     .orElse("");
-                if (!TextUtils.isEmpty(weeknumValue)) {
-                    weeknumHolder.tvWeeknum.setVisibility(View.VISIBLE);
-                    weeknumHolder.tvWeeknum.setText(String.format(Locale.getDefault(), "第%s周", weeknumValue));
-                } else {
-                    weeknumHolder.tvWeeknum.setVisibility(View.GONE);
-                }
             } else {
-                // 首周无跨月日期，遍历当前周日期获取有效周数
-                String weeknumValue = "";
                 for (int i = actualPosition; i < Math.min(actualPosition + 7, days.size()); i++) {
                     CalendarDay day = days.get(i);
                     if (!TextUtils.isEmpty(day.weeknum)) {
-                        weeknumValue = day.weeknum;
-                        break;
+                        return day.weeknum;
                     }
-                }
-                if (!TextUtils.isEmpty(weeknumValue)) {
-                    weeknumHolder.tvWeeknum.setVisibility(View.VISIBLE);
-                    weeknumHolder.tvWeeknum.setText(String.format(Locale.getDefault(), "第%s周", weeknumValue));
-                } else {
-                    weeknumHolder.tvWeeknum.setVisibility(View.GONE);
                 }
             }
         } else if (actualPosition < days.size()) {
-            // 非首周正常取当前位置周数
-            String weeknumValue = days.get(actualPosition).weeknum;
-            if (!TextUtils.isEmpty(weeknumValue)) {
-                weeknumHolder.tvWeeknum.setVisibility(View.VISIBLE);
-                weeknumHolder.tvWeeknum.setText(String.format(Locale.getDefault(), "第%s周", weeknumValue));
-            } else {
-                weeknumHolder.tvWeeknum.setVisibility(View.GONE);
-            }
+            return days.get(actualPosition).weeknum;
+        }
+        return "";
+    }
+
+    @Override
+    public void onBindViewHolder(RecyclerView.ViewHolder holder, int position) {
+    int viewType = getItemViewType(position);
+    if (viewType == VIEW_TYPE_WEEKNUM_HEADER) {
+        WeeknumHeaderViewHolder weeknumHolder = (WeeknumHeaderViewHolder) holder;
+        int weekIndex = position / 8;
+        String weeknumValue = weeknumCache.getOrDefault(weekIndex, "");
+        
+        if (!TextUtils.isEmpty(weeknumValue)) {
+            weeknumHolder.tvWeeknum.setVisibility(View.VISIBLE);
+            weeknumHolder.tvWeeknum.setText(String.format(Locale.getDefault(), "第%s周", weeknumValue));
+        } else {
+            weeknumHolder.tvWeeknum.setVisibility(View.GONE);
         }
         weeknumHolder.tvDayShiftTitle.setText("白班");
         weeknumHolder.tvNightShiftTitle.setText("夜班");
@@ -126,38 +132,20 @@ public void onBindViewHolder(RecyclerView.ViewHolder holder, int position) {
             if (!day.getIsEmpty()) {
                 dayHolder.tvDay.setText(String.valueOf(day.dayOfMonth));
                 
-                // 动态创建白班班组视图
-                Log.d("ShiftDebug", "白班数据：" + day.dayTeams.toString());
-                dayHolder.teamContainerDay.removeAllViews();
-                for (String team : day.dayTeams) {
-                    TextView teamView = new TextView(dayHolder.itemView.getContext());
-            teamView.setLayoutParams(new LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT,
-                ViewGroup.LayoutParams.WRAP_CONTENT, 1.0f));
-            teamView.setTextSize(12);
-            teamView.setPadding(4, 2, 4, 2);
-                    teamView.setText(team);
-                    setTeamBackground(teamView, team);
-                    dayHolder.teamContainerDay.addView(teamView);
-                }
-                
-                // 动态创建夜班班组视图
-                Log.d("ShiftDebug", "夜班数据：" + day.nightTeams.toString());
-                dayHolder.teamContainerNight.removeAllViews();
-                for (String team : day.nightTeams) {
-                    TextView teamView = new TextView(dayHolder.itemView.getContext());
-            teamView.setLayoutParams(new LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT,
-                ViewGroup.LayoutParams.WRAP_CONTENT, 1.0f));
-            teamView.setTextSize(12);
-            teamView.setPadding(4, 2, 4, 2);
-                    teamView.setText(team);
-                    setTeamBackground(teamView, team);
-                    dayHolder.teamContainerNight.addView(teamView);
-                }
+                // 创建班组视图
+                createTeamViews(dayHolder.teamContainerDay, day.dayTeams, dayHolder.itemView.getContext());
+                createTeamViews(dayHolder.teamContainerNight, day.nightTeams, dayHolder.itemView.getContext());
                 
                 // 高亮今天
-                dayHolder.tvDay.setTextColor(day.isToday ? Color.RED : Color.BLACK);
+if(day.isToday) {
+    dayHolder.tvDay.setTextColor(Color.WHITE);
+    dayHolder.tvDay.setBackgroundResource(R.drawable.today_highlight_bg);
+    dayHolder.itemView.setBackgroundResource(R.drawable.today_highlight_bg);
+} else {
+    dayHolder.tvDay.setTextColor(Color.BLACK);
+    dayHolder.tvDay.setBackgroundColor(Color.TRANSPARENT);
+    dayHolder.itemView.setBackgroundColor(Color.TRANSPARENT);
+}
             }
         }
     }
@@ -195,6 +183,21 @@ public void onBindViewHolder(RecyclerView.ViewHolder holder, int position) {
         TEAM_COLOR_MAP.put("7", R.color.team_7);
     }
 
+    private void createTeamViews(LinearLayout container, List<String> teams, Context context) {
+        container.removeAllViews();
+        for (String team : teams) {
+            TextView teamView = new TextView(context);
+            teamView.setLayoutParams(new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT, 1.0f));
+            teamView.setTextSize(12);
+            teamView.setPadding(4, 2, 4, 2);
+            teamView.setText(team);
+            setTeamBackground(teamView, team);
+            container.addView(teamView);
+        }
+    }
+    
     private void setTeamBackground(TextView textView, String team) {
         String teamNumber = team.replaceAll("\\D+", "");
         int teamIndex = (Integer.parseInt(teamNumber.isEmpty() ? "0" : teamNumber) - 1) % 7 + 1;
