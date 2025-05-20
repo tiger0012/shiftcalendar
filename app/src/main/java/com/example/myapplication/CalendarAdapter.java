@@ -61,22 +61,50 @@ public void onBindViewHolder(RecyclerView.ViewHolder holder, int position) {
         int weekIndex = position / 8;
         int actualPosition = weekIndex * 7;
         
-        // 处理跨月周数显示
-        if (weekIndex == 0 && days.get(0).dayOfWeek != 1) {
-            String weeknumValue = days.get(0).prevMonthLastWeeknum;
-            if (TextUtils.isEmpty(weeknumValue)) {
-    weeknumHolder.tvWeeknum.setVisibility(View.GONE);
-} else {
-    weeknumHolder.tvWeeknum.setVisibility(View.VISIBLE);
-    weeknumHolder.tvWeeknum.setText(String.format(Locale.getDefault(), "第%s周", weeknumValue));
-}
-        } else if (actualPosition < days.size()) {
-            String weeknumValue = days.get(actualPosition).weeknum;
-            if (TextUtils.isEmpty(weeknumValue)) {
-                weeknumHolder.tvWeeknum.setVisibility(View.GONE);
+        // 处理跨月周数显示（优化首周非周一的情况）
+        // 判断当前周是否为新月份的首周（可能跨月）
+        boolean isMonthStartWeek = weekIndex == 0 || (actualPosition > 0 && days.get(actualPosition).month != days.get(actualPosition - 1).month);
+        if (isMonthStartWeek) {
+            // 检查当前周是否存在上月日期（本月首日非周一的情况）
+            boolean hasPrevMonthDays = days.subList(actualPosition, Math.min(actualPosition + 7, days.size())).stream().anyMatch(d -> d.isPrevMonth);
+            if (hasPrevMonthDays) {
+                // 获取当前周内第一个有有效周数的跨月日期的上月周数
+                String weeknumValue = days.subList(actualPosition, Math.min(actualPosition + 7, days.size())).stream()
+                    .filter(d -> d.isPrevMonth && !TextUtils.isEmpty(d.prevMonthLastWeeknum)) 
+                    .findFirst()
+                    .map(d -> d.prevMonthLastWeeknum)
+                    .orElse("");
+                if (!TextUtils.isEmpty(weeknumValue)) {
+                    weeknumHolder.tvWeeknum.setVisibility(View.VISIBLE);
+                    weeknumHolder.tvWeeknum.setText(String.format(Locale.getDefault(), "第%s周", weeknumValue));
+                } else {
+                    weeknumHolder.tvWeeknum.setVisibility(View.GONE);
+                }
             } else {
+                // 首周无跨月日期，遍历当前周日期获取有效周数
+                String weeknumValue = "";
+                for (int i = actualPosition; i < Math.min(actualPosition + 7, days.size()); i++) {
+                    CalendarDay day = days.get(i);
+                    if (!TextUtils.isEmpty(day.weeknum)) {
+                        weeknumValue = day.weeknum;
+                        break;
+                    }
+                }
+                if (!TextUtils.isEmpty(weeknumValue)) {
+                    weeknumHolder.tvWeeknum.setVisibility(View.VISIBLE);
+                    weeknumHolder.tvWeeknum.setText(String.format(Locale.getDefault(), "第%s周", weeknumValue));
+                } else {
+                    weeknumHolder.tvWeeknum.setVisibility(View.GONE);
+                }
+            }
+        } else if (actualPosition < days.size()) {
+            // 非首周正常取当前位置周数
+            String weeknumValue = days.get(actualPosition).weeknum;
+            if (!TextUtils.isEmpty(weeknumValue)) {
                 weeknumHolder.tvWeeknum.setVisibility(View.VISIBLE);
                 weeknumHolder.tvWeeknum.setText(String.format(Locale.getDefault(), "第%s周", weeknumValue));
+            } else {
+                weeknumHolder.tvWeeknum.setVisibility(View.GONE);
             }
         }
         weeknumHolder.tvDayShiftTitle.setText("白班");
@@ -91,6 +119,8 @@ public void onBindViewHolder(RecyclerView.ViewHolder holder, int position) {
             dayHolder.tvDay.setText("");
             if (dayHolder.tvDayTeams != null) dayHolder.tvDayTeams.setText("");
             if (dayHolder.tvNightTeams != null) dayHolder.tvNightTeams.setText("");
+            dayHolder.teamContainerDay.removeAllViews();
+            dayHolder.teamContainerNight.removeAllViews();
             dayHolder.itemView.setBackgroundColor(Color.TRANSPARENT);
         } else {
             if (!day.getIsEmpty()) {

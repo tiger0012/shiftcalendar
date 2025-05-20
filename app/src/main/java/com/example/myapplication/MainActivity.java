@@ -42,9 +42,10 @@ public class MainActivity extends AppCompatActivity {
     private String getPreviousMonthLastWeeknum(int year, int month) {
         try {
             Calendar cal = Calendar.getInstance();
-            cal.set(year, month - 2, 1); // 上个月
-            String lastDayOfPrevMonth = new SimpleDateFormat("yyyy-MM-dd", Locale.getDefault())
-                .format(cal.getActualMaximum(Calendar.DAY_OF_MONTH));
+            cal.set(year, month - 2, 1); // 修正为上个月的第一天（月份减2，因为Calendar.MONTH是0-based）
+            int lastDay = cal.getActualMaximum(Calendar.DAY_OF_MONTH);
+            cal.set(year, month - 2, lastDay); // 设置为上个月的最后一天
+            String lastDayOfPrevMonth = new SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(cal.getTime());
             
             DayShiftGroup group = allData.get(lastDayOfPrevMonth);
             return group != null && group.weeknum != null ? group.weeknum : "";
@@ -198,8 +199,12 @@ public class MainActivity extends AppCompatActivity {
             empty.isEmpty = true;
             empty.date = Calendar.getInstance(); // 初始化Calendar对象
             empty.date = Calendar.getInstance(); // 初始化Calendar对象
+            // 清空班组信息
+            empty.dayTeams = new ArrayList<>();
+            empty.nightTeams = new ArrayList<>();
             // 设置上个月最后一周周数
             empty.prevMonthLastWeeknum = getPreviousMonthLastWeeknum(year, month);
+            empty.isPrevMonth = true;
             result.add(empty);
         }
 
@@ -229,6 +234,9 @@ public class MainActivity extends AppCompatActivity {
             empty.isEmpty = true;
             empty.date = Calendar.getInstance(); // 初始化Calendar对象
             empty.date = Calendar.getInstance(); // 初始化Calendar对象
+            // 清空班组信息
+            empty.dayTeams = new ArrayList<>();
+            empty.nightTeams = new ArrayList<>();
             result.add(empty);
         }
         return result;

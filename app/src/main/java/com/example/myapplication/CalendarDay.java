@@ -14,6 +14,7 @@ public class CalendarDay {
     // 保留原有字符串date字段用于显示
     public String dateStr;
     public int dayOfMonth; // 1~31
+    public int month; // 月份（1-12）
     public List<String> dayTeams = new ArrayList<>();
     public List<String> nightTeams = new ArrayList<>();
     public boolean isToday;
@@ -26,4 +27,5 @@ public class CalendarDay {
     }
     public String weeknum; // 周数
     public String prevMonthLastWeeknum; // 上个月最后一周周数
+    public boolean isPrevMonth; // 标记是否为上月日期
 }
