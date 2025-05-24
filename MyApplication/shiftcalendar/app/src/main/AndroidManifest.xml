@@ -1,6 +1,0 @@
-<!-- 原内容 -->
-<manifest xmlns:android="http://schemas.android.com/apk/res/android"
-    package="com.example.myapplication">
-
-<!-- 修改后 -->
-<manifest xmlns:android="http://schemas.android.com/apk/res/android">
