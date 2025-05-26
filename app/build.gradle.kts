@@ -1,3 +1,9 @@
+android {
+    defaultConfig {
+        versionCode = 22
+        versionName = "2.2"
+    }
+}
 plugins {
     alias(libs.plugins.android.application)
 }
@@ -27,7 +33,7 @@ android {
     buildTypes {
         release {
             isMinifyEnabled = true
-            isShrinkResources = true
+            isShrinkResources = false
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
