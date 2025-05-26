@@ -6,6 +6,24 @@ import java.util.Calendar;
 import java.util.List;
 
 public class CalendarDay {
+    private String lunarDate;
+    private boolean isHoliday;
+
+    public String getLunarDate() {
+        return lunarDate;
+    }
+
+    public void setLunarDate(String lunarDate) {
+        this.lunarDate = lunarDate;
+    }
+
+    public boolean isHoliday() {
+        return isHoliday;
+    }
+
+    public void setHoliday(boolean holiday) {
+        isHoliday = holiday;
+    }
     public LocalDate date;
 
     public LocalDate getDate() {
@@ -29,4 +47,34 @@ public class CalendarDay {
     public String weeknum; // 周数
     public String prevMonthLastWeeknum; // 上个月最后一周周数
     public boolean isPrevMonth; // 标记是否为上月日期
+
+    public static class Builder {
+        private int dayOfMonth;
+        private String lunarDate;
+        private boolean isHoliday;
+
+        public Builder dayOfMonth(int dayOfMonth) {
+            this.dayOfMonth = dayOfMonth;
+            return this;
+        }
+
+        public Builder lunarDate(String lunarDate) {
+            this.lunarDate = lunarDate;
+            return this;
+        }
+
+        public Builder isHoliday(boolean isHoliday) {
+            this.isHoliday = isHoliday;
+            return this;
+        }
+
+        public CalendarDay build() {
+            CalendarDay day = new CalendarDay();
+            day.dayOfMonth = this.dayOfMonth;
+            day.lunarDate = this.lunarDate;
+            day.isHoliday = this.isHoliday;
+            // 可添加参数校验逻辑（如日期范围）
+            return day;
+        }
+    }
 }

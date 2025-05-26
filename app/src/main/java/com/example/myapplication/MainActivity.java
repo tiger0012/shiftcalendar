@@ -28,6 +28,9 @@ import java.time.temporal.TemporalAdjusters;
 import java.util.*;
 import java.text.ParseException;
 
+import com.nlf.calendar.Lunar;
+import com.nlf.calendar.util.HolidayUtil;
+
 public class MainActivity extends AppCompatActivity {
 
     private RecyclerView rvShiftCalendar;
@@ -197,7 +200,45 @@ public class MainActivity extends AppCompatActivity {
         return map;
     }
 
+    // 使用cn.6tail:lunar库进行农历转换
     private List<CalendarDay> generateMonthCalendar(int year, int month, Map<String, DayShiftGroup> allData) {
+        // 生成公历日期列表
+        List<LocalDate> dates = new ArrayList<>();
+        LocalDate firstDay = LocalDate.of(year, month, 1);
+        LocalDate lastDay = firstDay.with(TemporalAdjusters.lastDayOfMonth());
+        for (LocalDate date = firstDay; !date.isAfter(lastDay); date = date.plusDays(1)) {
+            dates.add(date);
+        }
+
+        List<CalendarDay> days = new ArrayList<>();
+        for (LocalDate date : dates) {
+            // 使用新添加的农历库获取阴历信息
+            java.util.Date utilDate = java.sql.Date.valueOf(date.toString());
+            android.util.Log.d("CalendarInfo", "当前日期: " + date.toString());
+            android.util.Log.d("CalendarInfo", "转换后的日期: " + utilDate.toString());
+            Lunar lunar = Lunar.fromDate(utilDate);
+            String lunarDateStr = lunar.toString().substring(lunar.toString().indexOf("年") + 1); // 截取'年'之后的部分（如'二〇二五年四月廿二'→'四月廿二'
+            android.util.Log.d("CalendarInfo", "农历日期: " + lunarDateStr);
+
+            // 此处需要根据实际的CalendarDay.Builder API修改
+            // 由于不清楚正确方法名，暂时注释掉有问题的代码
+            // CalendarDay day = new CalendarDay.Builder()
+            //    .setDate(date)
+            //    .setLunarDate(lunarDateStr)
+            //    .build();
+            // 请根据实际API文档完善此处代码
+            // 使用 CalendarDay.Builder 构造 CalendarDay 对象
+            CalendarDay day = new CalendarDay.Builder()
+                .dayOfMonth(date.getDayOfMonth())
+                .lunarDate(lunarDateStr) // 确保正确设置农历日期
+                .isHoliday(false)
+                .build();
+            android.util.Log.d("CalendarInfo", "生成的 CalendarDay 对象是否为空: " + (day == null));
+            if (day != null) {
+                days.add(day);
+            }
+        }
+
         List<CalendarDay> result = new ArrayList<>();
         LocalDate firstDayOfMonth = LocalDate.of(year, month, 1);
         int firstDayOfWeek = firstDayOfMonth.getDayOfWeek().getValue() % 7 + 1; // 转换为Calendar的周日=1格式
