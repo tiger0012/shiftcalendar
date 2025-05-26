@@ -8,6 +8,7 @@ import java.util.List;
 public class CalendarDay {
     private String lunarDate;
     private boolean isHoliday;
+    private int lunarTextColor; // 农历日期文本颜色资源ID
 
     public String getLunarDate() {
         return lunarDate;
@@ -44,6 +45,10 @@ public class CalendarDay {
     public boolean getIsEmpty() {
         return isEmpty;
     }
+    
+    public int getLunarTextColor() {
+        return lunarTextColor;
+    }
     public String weeknum; // 周数
     public String prevMonthLastWeeknum; // 上个月最后一周周数
     public boolean isPrevMonth; // 标记是否为上月日期
@@ -52,6 +57,7 @@ public class CalendarDay {
         private int dayOfMonth;
         private String lunarDate;
         private boolean isHoliday;
+        private int lunarTextColor = R.color.primary_text_color; // 默认颜色
 
         public Builder dayOfMonth(int dayOfMonth) {
             this.dayOfMonth = dayOfMonth;
@@ -67,12 +73,18 @@ public class CalendarDay {
             this.isHoliday = isHoliday;
             return this;
         }
+        
+        public Builder lunarTextColor(int lunarTextColor) {
+            this.lunarTextColor = lunarTextColor;
+            return this;
+        }
 
         public CalendarDay build() {
             CalendarDay day = new CalendarDay();
             day.dayOfMonth = this.dayOfMonth;
             day.lunarDate = this.lunarDate;
             day.isHoliday = this.isHoliday;
+            day.lunarTextColor = this.lunarTextColor;
             // 可添加参数校验逻辑（如日期范围）
             return day;
         }

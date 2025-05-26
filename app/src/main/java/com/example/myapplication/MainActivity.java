@@ -217,8 +217,25 @@ public class MainActivity extends AppCompatActivity {
             android.util.Log.d("CalendarInfo", "当前日期: " + date.toString());
             android.util.Log.d("CalendarInfo", "转换后的日期: " + utilDate.toString());
             Lunar lunar = Lunar.fromDate(utilDate);
-            String lunarDateStr = lunar.toString().substring(lunar.toString().indexOf("年") + 1); // 截取'年'之后的部分（如'二〇二五年四月廿二'→'四月廿二'
-            android.util.Log.d("CalendarInfo", "农历日期: " + lunarDateStr);
+            String lunarDateStr = lunar.toString().substring(lunar.toString().indexOf("年") + 1);
+            int textColor = R.color.primary_text_color; // 默认颜色
+            
+            if(lunarDateStr.contains("初一")) {
+                int monthIndex = lunarDateStr.indexOf("月");
+                lunarDateStr = lunarDateStr.substring(0, monthIndex + 1);
+                textColor = R.color.cyan; // 初一使用青色
+            } else {
+                int monthIndex = lunarDateStr.indexOf("月");
+                lunarDateStr = lunarDateStr.substring(monthIndex + 1);
+            }
+            
+            // CalendarDay day = new CalendarDay.Builder()
+            //     .dayOfMonth(date.getDayOfMonth())
+            //     .lunarDate(lunarDateStr)
+            //     .lunarTextColor(textColor) // 设置农历文本颜色
+            //     .isHoliday(false)
+            //     .build();
+            // android.util.Log.d("CalendarInfo", "农历日期: " + lunarDateStr);
 
             // 此处需要根据实际的CalendarDay.Builder API修改
             // 由于不清楚正确方法名，暂时注释掉有问题的代码
@@ -230,6 +247,7 @@ public class MainActivity extends AppCompatActivity {
             // 使用 CalendarDay.Builder 构造 CalendarDay 对象
             CalendarDay day = new CalendarDay.Builder()
                 .dayOfMonth(date.getDayOfMonth())
+                .lunarTextColor(textColor)
                 .lunarDate(lunarDateStr) // 确保正确设置农历日期
                 .isHoliday(false)
                 .build();
