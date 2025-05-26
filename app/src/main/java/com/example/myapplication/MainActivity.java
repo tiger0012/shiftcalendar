@@ -1,3 +1,4 @@
+//测试git   
 package com.example.myapplication;
 import android.graphics.Color;
 import android.os.Bundle;
