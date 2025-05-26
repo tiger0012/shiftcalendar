@@ -266,7 +266,7 @@ public class MainActivity extends AppCompatActivity {
         for (int d = 1; d <= daysInMonth; d++) {
             LocalDate date = LocalDate.of(year, month, d);
             String dateStr = dateFormatter.format(date);
-            CalendarDay day = new CalendarDay();
+            CalendarDay day  = days.get(d - 1);
             day.date = date;
             day.dateStr = dateStr;
             day.dayOfMonth = d;
