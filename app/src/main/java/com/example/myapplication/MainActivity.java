@@ -266,7 +266,12 @@ public class MainActivity extends AppCompatActivity {
         for (int d = 1; d <= daysInMonth; d++) {
             LocalDate date = LocalDate.of(year, month, d);
             String dateStr = dateFormatter.format(date);
-            CalendarDay day  = days.get(d - 1);
+            // 原错误代码（重新创建对象）
+            // CalendarDay day = new CalendarDay();
+            
+            // 修正后（使用days列表中的对象）
+            // 假设dates和days顺序一致，通过索引获取已生成的CalendarDay对象
+            CalendarDay day = days.get(d - 1); // d从1开始，索引为d-1
             day.date = date;
             day.dateStr = dateStr;
             day.dayOfMonth = d;
