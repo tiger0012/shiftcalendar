@@ -219,23 +219,23 @@ public class MainActivity extends AppCompatActivity {
             android.util.Log.d("CalendarInfo", "转换后的日期: " + utilDate.toString());
             Lunar lunar = Lunar.fromDate(utilDate);
             String lunarDateStr = lunar.toString().substring(lunar.toString().indexOf("年") + 1);
-            int textColor = R.color.primary_text_color; // 默认颜色
+            int lunarBgColor = R.color.transparent; // 默认背景色
             
             if(lunarDateStr.contains("初一")) {
                 int monthIndex = lunarDateStr.indexOf("月");
                 lunarDateStr = lunarDateStr.substring(0, monthIndex + 1);
-                textColor = R.color.cyan; // 初一使用青色
+                lunarBgColor = R.color.cyan; // 初一使用青色背景
             } else {
                 int monthIndex = lunarDateStr.indexOf("月");
                 lunarDateStr = lunarDateStr.substring(monthIndex + 1);
             }
             
-            // CalendarDay day = new CalendarDay.Builder()
-            //     .dayOfMonth(date.getDayOfMonth())
-            //     .lunarDate(lunarDateStr)
-            //     .lunarTextColor(textColor) // 设置农历文本颜色
-            //     .isHoliday(false)
-            //     .build();
+            CalendarDay day = new CalendarDay.Builder()
+                .dayOfMonth(date.getDayOfMonth())
+                .lunarDate(lunarDateStr)
+                .lunarBgColor(lunarBgColor) // 设置农历背景颜色
+                .isHoliday(false)
+                .build();
             // android.util.Log.d("CalendarInfo", "农历日期: " + lunarDateStr);
 
             // 此处需要根据实际的CalendarDay.Builder API修改
@@ -246,12 +246,12 @@ public class MainActivity extends AppCompatActivity {
             //    .build();
             // 请根据实际API文档完善此处代码
             // 使用 CalendarDay.Builder 构造 CalendarDay 对象
-            CalendarDay day = new CalendarDay.Builder()
-                .dayOfMonth(date.getDayOfMonth())
-                .lunarTextColor(textColor)
-                .lunarDate(lunarDateStr) // 确保正确设置农历日期
-                .isHoliday(false)
-                .build();
+            // CalendarDay day = new CalendarDay.Builder()
+            //     .dayOfMonth(date.getDayOfMonth())
+            //     .lunarTextColor(textColor)
+            //     .lunarDate(lunarDateStr) // 确保正确设置农历日期
+            //     .isHoliday(false)
+            //     .build();
             android.util.Log.d("CalendarInfo", "生成的 CalendarDay 对象是否为空: " + (day == null));
             if (day != null) {
                 days.add(day);

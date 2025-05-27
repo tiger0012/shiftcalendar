@@ -2,7 +2,7 @@
 <resources>
     <color name="black">#FF000000</color>
     <color name="white">#FFFFFFFF</color>
-    <color name="cyan">#FF00FFFF</color>
+    <color name="cyan">#006FFF</color> <!-- 农历月初第一天的背景色-->
     <color name="primary_text_color">#FF000000</color>
     
     <!-- 班组背景色 -->
@@ -14,5 +14,6 @@
     <color name="team_6">#FFFF00</color>
     <color name="team_7">#FFCC00</color>
 
+    <color name="transparent">#00000000</color>
     <color name="team_default">#BDBDBD</color>
 </resources>

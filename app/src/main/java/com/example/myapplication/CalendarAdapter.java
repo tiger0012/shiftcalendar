@@ -164,7 +164,7 @@ if(day.isToday) {
     dayHolder.itemView.setBackgroundResource(R.drawable.today_highlight_bg);
 } else {
     dayHolder.tvDay.setTextColor(ContextCompat.getColor(dayHolder.itemView.getContext(), day.getLunarTextColor()));
-    dayHolder.tvDay.setBackgroundColor(Color.TRANSPARENT);
+    dayHolder.tvDay.setBackgroundColor(ContextCompat.getColor(dayHolder.itemView.getContext(), day.getLunarBgColor()));
     dayHolder.itemView.setBackgroundColor(Color.TRANSPARENT);
 }
             }
