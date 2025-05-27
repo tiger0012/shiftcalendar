@@ -146,12 +146,12 @@ private void precomputeWeeknumCache() {
         } else {
             if (!day.getIsEmpty()) {
                 // 组合公历、农历和节假日信息，使用工具类方法
-                String displayText = DateDisplayUtils.getDayDisplayText(day.dayOfMonth, day.getLunarDate(), day.isHoliday());
+                String displayText = DateDisplayUtils.getDayDisplayText(day.dayOfMonth, day.getLunarDate(), day.isHoliday(), day.getHolidayName());
                 // 已通过工具类生成完整显示文本，设置到TextView
                 dayHolder.tvDay.setText(displayText);
 
                 // 添加日志检查参数是否传入
-                android.util.Log.d("CalendarAdapter", "当前日期参数：公历=" + day.dayOfMonth + ", 农历=" + day.getLunarDate() + ", 节假日=" + day.isHoliday() + ", 今天=" + day.isToday);
+                android.util.Log.d("CalendarAdapter", "当前日期参数：公历=" + day.dayOfMonth + ", 农历=" + day.getLunarDate() + ", 节假日=" + day.isHoliday()+  day.getHolidayName() + ", 今天=" + day.isToday);
 
                 // 创建班组视图
                 createTeamViews(dayHolder.teamContainerDay, day.dayTeams, dayHolder.itemView.getContext());

@@ -16,4 +16,5 @@
 
     <color name="transparent">#00000000</color>
     <color name="team_default">#BDBDBD</color>
+    <color name="holiday_red">#FF0000</color> <!-- 假期背景红色 -->
 </resources>

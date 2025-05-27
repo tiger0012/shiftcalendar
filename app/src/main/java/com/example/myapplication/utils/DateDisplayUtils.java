@@ -3,7 +3,7 @@ package com.example.myapplication.utils;
 import android.text.TextUtils;
 
 public class DateDisplayUtils {
-    public static String getDayDisplayText(int solarDay, String lunarDate, boolean isHoliday) {
+    public static String getDayDisplayText(int solarDay, String lunarDate, boolean isHoliday, String holidayName) {
         // 使用TextUtils判断空字符串
         StringBuilder sb = new StringBuilder();
         sb.append(solarDay);
@@ -11,7 +11,9 @@ public class DateDisplayUtils {
             sb.append("\n").append(lunarDate);
         }
         if (isHoliday) {
-            sb.append("（假）");
+            if (!TextUtils.isEmpty(holidayName)) {
+                if (!TextUtils.isEmpty(holidayName)) { sb.append(holidayName); }
+            }
         }
         return sb.toString();
     }

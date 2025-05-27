@@ -30,6 +30,7 @@ import java.util.*;
 import java.text.ParseException;
 
 import com.nlf.calendar.Lunar;
+import com.nlf.calendar.Holiday;
 import com.nlf.calendar.util.HolidayUtil;
 
 public class MainActivity extends AppCompatActivity {
@@ -215,13 +216,47 @@ public class MainActivity extends AppCompatActivity {
         for (LocalDate date : dates) {
             // 使用新添加的农历库获取阴历信息
             java.util.Date utilDate = java.sql.Date.valueOf(date.toString());
+            SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd", Locale.getDefault());
+            String dateStr = sdf.format(utilDate);
+            
+            // 获取假期信息（参考https://6tail.cn/calendar/api.html）
+            // 由于 year 变量已在方法参数中存在，避免重复定义，直接使用方法参数中的 year
+            // 此处无需重新定义 year 变量，直接使用传入的 year 参数即可
+            // 由于方法参数中已有 month 变量，此处直接使用方法参数中的 month，避免重复定义
+            // 因此删除此局部变量的定义，无需重新获取月份值
+            // int dayOfMonth = date.getDayOfMonth();
+            
             android.util.Log.d("CalendarInfo", "当前日期: " + date.toString());
             android.util.Log.d("CalendarInfo", "转换后的日期: " + utilDate.toString());
             Lunar lunar = Lunar.fromDate(utilDate);
+            // int year = date.getYear();
+            // int month = date.getMonthValue();
+            int dayOfMonth = date.getDayOfMonth();
+            Holiday holiday = HolidayUtil.getHoliday(year, month, dayOfMonth);
+            boolean isWork = false;
+            String holidayName = "";
+            String holidayTarget = "";
+            if (holiday != null) {
+                isWork = holiday.isWork();
+                holidayName = holiday.getName();
+                Log.d("MainActivity", "holidayName: " + holidayName); // 打印holidayName的值
+                holidayTarget = holiday.getTarget();
+            }
             String lunarDateStr = lunar.toString().substring(lunar.toString().indexOf("年") + 1);
             int lunarBgColor = R.color.transparent; // 默认背景色
+            boolean isHoliday = !android.text.TextUtils.isEmpty(holidayName); // 判断是否有假期名称
             
-            if(lunarDateStr.contains("初一")) {
+            if (isHoliday) {
+                lunarBgColor = R.color.holiday_red; // 假期使用红色背景
+                // 假期时处理农历显示：月初第一天显示月份，其他显示具体日期
+                if (lunarDateStr.contains("初一")) {
+                    int monthIndex = lunarDateStr.indexOf("月");
+                    lunarDateStr = lunarDateStr.substring(0, monthIndex + 1);
+                } else {
+                    int monthIndex = lunarDateStr.indexOf("月");
+                    lunarDateStr = lunarDateStr.substring(monthIndex + 1);
+                }
+            } else if(lunarDateStr.contains("初一")) {
                 int monthIndex = lunarDateStr.indexOf("月");
                 lunarDateStr = lunarDateStr.substring(0, monthIndex + 1);
                 lunarBgColor = R.color.cyan; // 初一使用青色背景
@@ -234,7 +269,8 @@ public class MainActivity extends AppCompatActivity {
                 .dayOfMonth(date.getDayOfMonth())
                 .lunarDate(lunarDateStr)
                 .lunarBgColor(lunarBgColor) // 设置农历背景颜色
-                .isHoliday(false)
+                .isHoliday(isHoliday)
+                .holidayName(holidayName)
                 .build();
             // android.util.Log.d("CalendarInfo", "农历日期: " + lunarDateStr);
 
