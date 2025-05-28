@@ -150,6 +150,7 @@ public class MainActivity extends AppCompatActivity {
             String line;
             boolean isFirst = true;
             int weeknumIndex = -1;
+            int holidayIndex = -1; // 新增Holiday列索引
             
             // 预分配缓冲区
             StringBuilder lineBuilder = new StringBuilder(256);
@@ -163,9 +164,10 @@ public class MainActivity extends AppCompatActivity {
                     // 查找Weeknum列索引
                     for (int i = 0; i < tokens.length; i++) {
                         if (tokens[i].trim().equalsIgnoreCase("Weeknum")) {
-                            weeknumIndex = i;
-                            break;
-                        }
+                        weeknumIndex = i;
+                    } else if (tokens[i].trim().equalsIgnoreCase("Holiday")) {
+                        holidayIndex = i;
+                    }
                     }
                     isFirst = false;
                     continue;
@@ -188,6 +190,11 @@ public class MainActivity extends AppCompatActivity {
                 DayShiftGroup group = map.computeIfAbsent(date, k -> new DayShiftGroup());
                 group.date = date;
                 group.weeknum = weeknum;
+                // 读取Holiday列（L列）并设置是否为假期
+                if (holidayIndex != -1 && holidayIndex < tokens.length) {
+                    String holidayValue = tokens[holidayIndex].trim();
+                    group.isPublicHoliday = "Y".equalsIgnoreCase(holidayValue);
+                }
 
                 if ("Day".equalsIgnoreCase(dayNight)) {
                     if (!group.dayTeams.contains(team)) group.dayTeams.add(team);
@@ -244,7 +251,13 @@ public class MainActivity extends AppCompatActivity {
             }
             String lunarDateStr = lunar.toString().substring(lunar.toString().indexOf("年") + 1);
             int lunarBgColor = R.color.transparent; // 默认背景色
-            boolean isHoliday = !android.text.TextUtils.isEmpty(holidayName); // 判断是否有假期名称
+            // 获取CSV中的假期标记
+            DayShiftGroup group = allData.get(dateStr);
+            boolean isCsvHoliday = group != null && group.isPublicHoliday;
+            Log.d("MainActivity", "Date: " + dateStr + ", isPublicHoliday: " + (group != null ? group.isPublicHoliday : "null") + ", holidayName: " + holidayName);
+            
+            // 结合原假期判断和CSV标记
+            boolean isHoliday = isCsvHoliday; // 仅当CSV中的isPublicHoliday为true时标记为假期，显示红色背景
             
             if (isHoliday) {
                 lunarBgColor = R.color.holiday_red; // 假期使用红色背景
