@@ -6,8 +6,15 @@ import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
+import android.widget.AdapterView;
+import android.widget.ArrayAdapter;
 import android.widget.Button;
+import android.widget.Spinner;
 import android.widget.TextView;
+import android.content.SharedPreferences;
+import androidx.core.content.ContextCompat;
+import androidx.recyclerview.widget.LinearLayoutManager;
+import androidx.recyclerview.widget.RecyclerView; // 补充完整RecyclerView相关导入
 
 import androidx.activity.EdgeToEdge;
 import androidx.appcompat.app.AppCompatActivity;
@@ -28,11 +35,11 @@ import java.time.format.DateTimeFormatter;
 import java.time.temporal.TemporalAdjusters;
 import java.util.*;
 import java.text.ParseException;
-
+import java.time.format.DateTimeParseException;
 import com.nlf.calendar.Lunar;
 import com.nlf.calendar.Holiday;
 import com.nlf.calendar.util.HolidayUtil;
-
+import androidx.annotation.NonNull;
 public class MainActivity extends AppCompatActivity {
 
     private RecyclerView rvShiftCalendar;
@@ -107,11 +114,110 @@ public class MainActivity extends AppCompatActivity {
             navigateMonth(1); // 下个月
         });
 
+        // 初始化时更新班组天数显示
+        calculateTeamDays();
+        updateTeamDaysDisplay();
+
         ViewCompat.setOnApplyWindowInsetsListener(findViewById(R.id.main), (v, insets) -> {
             Insets systemBars = insets.getInsets(WindowInsetsCompat.Type.systemBars());
             v.setPadding(systemBars.left, systemBars.top, systemBars.right, systemBars.bottom);
             return insets;
         });
+    }
+
+    private Map<String, Integer> teamDaysMap = new HashMap<>();
+
+    private void calculateTeamDays() {
+        teamDaysMap.clear();
+        android.util.Log.d("TeamDays", "开始统计，当前月份: " + currentYear + "-" + currentMonth);
+        android.util.Log.d("TeamDays", "allData大小: " + allData.size()); // 检查allData是否有数据
+        // 获取当前月份的第一天和最后一天
+        LocalDate firstDayOfMonth = LocalDate.of(currentYear, currentMonth, 1);
+        LocalDate lastDayOfMonth = firstDayOfMonth.with(TemporalAdjusters.lastDayOfMonth());
+        
+        for (DayShiftGroup group : allData.values()) {
+            android.util.Log.d("TeamDays", "当前处理日期数据: " + group.date); // 打印当前处理的日期
+            try {
+                // 解析group的日期字符串为LocalDate（假设日期格式为yyyy-MM-dd）
+                LocalDate groupDate = LocalDate.parse(group.date, DateTimeFormatter.ISO_LOCAL_DATE);
+                android.util.Log.d("TeamDays", "日期解析成功: " + groupDate);
+                // 检查日期是否在当前月份范围内
+                if (groupDate.isAfter(lastDayOfMonth) || groupDate.isBefore(firstDayOfMonth)) {
+                    android.util.Log.d("TeamDays", "日期不在当前月份，跳过: " + groupDate);
+                    continue;
+                }
+                android.util.Log.d("TeamDays", "日期在当前月份范围内，开始统计班组: dayTeams=" + group.dayTeams + ", nightTeams=" + group.nightTeams); // 打印班组列表
+            } catch (DateTimeParseException e) {
+                android.util.Log.e("TeamDays", "日期解析失败，格式错误: " + group.date + ", 错误信息: " + e.getMessage());
+                continue;
+            }
+            // 统计白班和夜班的班组天数
+            for (String team : group.dayTeams) {
+                teamDaysMap.put(team, teamDaysMap.getOrDefault(team, 0) + 1);
+                android.util.Log.d("TeamDays", "白班统计: 班组=" + team + ", 当前天数=" + teamDaysMap.get(team)); // 打印白班统计结果
+            }
+            for (String team : group.nightTeams) {
+                teamDaysMap.put(team, teamDaysMap.getOrDefault(team, 0) + 1);
+                android.util.Log.d("TeamDays", "夜班统计: 班组=" + team + ", 当前天数=" + teamDaysMap.get(team)); // 打印夜班统计结果
+            }
+        }
+    }
+
+    private static class TeamDaysAdapter extends RecyclerView.Adapter<TeamDaysAdapter.ViewHolder> {
+        private List<Map.Entry<String, Integer>> data;
+
+        private String currentSelectedTeam = "";
+
+        public TeamDaysAdapter(List<Map.Entry<String, Integer>> data, String currentSelectedTeam) {
+            this.data = data;
+            this.currentSelectedTeam = currentSelectedTeam;
+        }
+
+        @NonNull
+        @Override
+        public ViewHolder onCreateViewHolder(@NonNull ViewGroup parent, int viewType) {
+            View view = LayoutInflater.from(parent.getContext()).inflate(R.layout.item_team_days, parent, false);
+            return new ViewHolder(view);
+        }
+
+        @Override
+        public void onBindViewHolder(@NonNull ViewHolder holder, int position) {
+            Map.Entry<String, Integer> entry = data.get(position);
+            if (entry.getKey().equals(currentSelectedTeam)) {
+                android.util.Log.d("TeamDays", "当前班组天数: " + entry.getValue());
+                holder.tvTeamDays.setText(String.valueOf(entry.getValue()));
+                holder.itemView.setVisibility(View.VISIBLE);
+            } else {
+                holder.itemView.setVisibility(View.GONE);
+            }
+        }
+
+        @Override
+        public int getItemCount() {
+            return data.size();
+        }
+
+        static class ViewHolder extends RecyclerView.ViewHolder {
+            TextView tvTeamDays;
+
+            ViewHolder(View itemView) {
+                super(itemView);
+                tvTeamDays = itemView.findViewById(R.id.tv_team_days);
+            }
+        }
+    }
+
+    private void updateTeamDaysDisplay() {
+        android.util.Log.d("TeamDays", "updateTeamDaysDisplay: currentSelectedTeam=" + currentSelectedTeam + ", teamDaysMap是否为空=" + teamDaysMap.isEmpty()); // 检查团队选择和map状态
+        List<Map.Entry<String, Integer>> filteredData = new ArrayList<>();
+        if (!teamDaysMap.isEmpty() && !currentSelectedTeam.isEmpty()) {
+            android.util.Log.d("TeamDays", "teamDaysMap中当前团队天数: " + teamDaysMap.get(currentSelectedTeam)); // 检查目标团队是否有数据
+            filteredData.add(new AbstractMap.SimpleEntry<>(currentSelectedTeam, teamDaysMap.get(currentSelectedTeam)));
+        }
+        RecyclerView rvTeamDays = findViewById(R.id.rv_team_days);
+        rvTeamDays.setLayoutManager(new LinearLayoutManager(this));
+        TeamDaysAdapter teamDaysAdapter = new TeamDaysAdapter(filteredData, currentSelectedTeam);
+        rvTeamDays.setAdapter(teamDaysAdapter);
     }
 
     private void updateCalendarDisplay() {
@@ -129,6 +235,59 @@ public class MainActivity extends AppCompatActivity {
         }
 
         weeknumColumnAdapter.updateData(weeknumColumn);
+
+        // 统计班组总天数
+        calculateTeamDays();
+
+        // 初始化班组选择Spinner
+        Spinner spinnerTeamSelector = findViewById(R.id.spinner_team_selector);
+        List<String> teamList = new ArrayList<>(teamDaysMap.keySet());
+        ArrayAdapter<String> teamAdapter = new ArrayAdapter<>(this, android.R.layout.simple_spinner_item, teamList);
+        teamAdapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
+        spinnerTeamSelector.setAdapter(teamAdapter);
+
+        // 设置默认选中第一个班组
+        if (!teamList.isEmpty()) {
+            currentSelectedTeam = teamList.get(0);
+        }
+
+        SharedPreferences sp = getSharedPreferences("app_prefs", MODE_PRIVATE);
+        // 读取上次选择的班组
+        currentSelectedTeam = sp.getString("last_selected_team", "");
+        if (!teamList.isEmpty() && teamList.contains(currentSelectedTeam)) {
+            spinnerTeamSelector.setSelection(teamList.indexOf(currentSelectedTeam));
+        }
+
+        // Spinner选择监听
+        spinnerTeamSelector.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
+            @Override
+            public void onItemSelected(AdapterView<?> parent, View view, int position, long id) {
+                currentSelectedTeam = teamList.get(position);
+                Log.d("TeamColorDebug", "Selected team: " + currentSelectedTeam);
+                // 保存当前选择的班组
+                sp.edit().putString("last_selected_team", currentSelectedTeam).apply();
+                // 设置背景色（假设colors.xml中有对应颜色，如color_+currentSelectedTeam）
+                String colorResName = "team_" + currentSelectedTeam;
+                int colorResId = getResources().getIdentifier(colorResName, "color", getPackageName());
+                if (colorResId != 0) {
+                    // 使用ContextCompat避免过时API
+                    spinnerTeamSelector.setBackgroundColor(ContextCompat.getColor(MainActivity.this, colorResId));
+                }
+                updateTeamDaysDisplay();
+            }
+
+
+            @Override
+            public void onNothingSelected(AdapterView<?> parent) {}
+        });
+
+        // 初始化显示
+        RecyclerView rvTeamDays = findViewById(R.id.rv_team_days);
+        rvTeamDays.setLayoutManager(new LinearLayoutManager(this)); // 补充LayoutManager设置
+        TeamDaysAdapter teamDaysAdapter = new TeamDaysAdapter(new ArrayList<>(teamDaysMap.entrySet()), currentSelectedTeam);
+        rvTeamDays.setAdapter(teamDaysAdapter);
+        updateTeamDaysDisplay();
+        rvTeamDays.setAdapter(teamDaysAdapter);
     }
 
     private void navigateMonth(int monthOffset) {
@@ -137,7 +296,12 @@ public class MainActivity extends AppCompatActivity {
         currentMonth = currentDate.getMonthValue();
 
         updateCalendarDisplay();
+        // 月份切换时更新班组天数统计和显示
+        calculateTeamDays();
+        updateTeamDaysDisplay();
     }
+
+    private String currentSelectedTeam = "";
 
     private Map<String, DayShiftGroup> readShiftGroupsFromCSV() {
         Map<String, DayShiftGroup> map = new LinkedHashMap<>();
