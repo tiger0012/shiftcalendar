@@ -1,9 +1,10 @@
 package com.example.myapplication;
 
+import java.io.Serializable;
 import java.util.ArrayList;
 import java.util.List;
 
-public class DayShiftGroup {
+public class DayShiftGroup implements Serializable {
     public String date; // yyyy-MM-dd
     public List<String> dayTeams = new ArrayList<>();   // 白班组
     public List<String> nightTeams = new ArrayList<>(); // 夜班组

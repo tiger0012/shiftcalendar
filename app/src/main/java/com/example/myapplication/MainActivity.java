@@ -40,7 +40,23 @@ import com.nlf.calendar.Lunar;
 import com.nlf.calendar.Holiday;
 import com.nlf.calendar.util.HolidayUtil;
 import androidx.annotation.NonNull;
+import android.os.Build;
+import android.app.AlarmManager;
+import android.content.Intent;
+import android.content.Context;
+import android.widget.Toast;
+import androidx.activity.result.ActivityResultLauncher;
+import androidx.activity.result.contract.ActivityResultContracts;
+import android.widget.TimePicker;
+import android.widget.NumberPicker;
+
+import java.io.Serializable; // 添加Serializable导入
+import android.view.GestureDetector;
+import android.view.MotionEvent;
+import android.view.ScaleGestureDetector;
+
 public class MainActivity extends AppCompatActivity {
+    private static final String TAG = "MainActivity";
 
     private RecyclerView rvShiftCalendar;
     private RecyclerView rvWeeknumColumn;
@@ -54,6 +70,15 @@ public class MainActivity extends AppCompatActivity {
     private LocalDate currentDate;
 
     private Map<String, DayShiftGroup> allData;
+
+    private ActivityResultLauncher<String> notificationPermissionLauncher;
+
+    private Button btnGoToAlarmSettings; // 跳转到闹钟设置页面的按钮
+
+    private GestureDetector gestureDetector;
+    private static final int SWIPE_THRESHOLD = 50;
+    private static final int SWIPE_VELOCITY_THRESHOLD = 50;
+    private Button btnToday;
 
     // 新增类级别方法获取上月最后周数
     private String getPreviousMonthLastWeeknum(int year, int month) {
@@ -76,14 +101,66 @@ public class MainActivity extends AppCompatActivity {
         EdgeToEdge.enable(this);
         setContentView(R.layout.activity_main);
 
+        // 初始化手势检测器
+        gestureDetector = new GestureDetector(this, new GestureDetector.SimpleOnGestureListener() {
+            @Override
+            public boolean onFling(MotionEvent e1, MotionEvent e2, float velocityX, float velocityY) {
+                boolean result = false;
+                try {
+                    float diffY = e2.getY() - e1.getY();
+                    float diffX = e2.getX() - e1.getX();
+                    if (Math.abs(diffX) > Math.abs(diffY)) {
+                        if (Math.abs(diffX) > SWIPE_THRESHOLD && Math.abs(velocityX) > SWIPE_VELOCITY_THRESHOLD) {
+                            if (diffX > 0) {
+                                // 向右滑动，显示上个月
+                                navigateMonth(-1);
+                            } else {
+                                // 向左滑动，显示下个月
+                                navigateMonth(1);
+                            }
+                            result = true;
+                        }
+                    }
+                } catch (Exception exception) {
+                    exception.printStackTrace();
+                }
+                return result;
+            }
+        });
+
+        // 初始化权限请求
+        initPermissionRequests();
+
+        // 检查并请求权限
+        checkAndRequestPermissions();
+
+        // 请求闹钟权限
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            AlarmManager alarmManager = (AlarmManager) getSystemService(Context.ALARM_SERVICE);
+            if (alarmManager != null && !alarmManager.canScheduleExactAlarms()) {
+                Intent intent = new Intent(android.provider.Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM);
+                startActivity(intent);
+            }
+        }
+
         rvShiftCalendar = findViewById(R.id.rv_shift_calendar);
         rvWeeknumColumn = findViewById(R.id.rv_weeknum_column);
         RecyclerView rvWeekdayHeader = findViewById(R.id.rv_weekday_header);
         tvCurrentMonth = findViewById(R.id.tv_current_month);
-        btnPreviousMonth = findViewById(R.id.btn_previous_month);
-        btnNextMonth = findViewById(R.id.btn_next_month);
+        btnToday = findViewById(R.id.btn_today);
 
-        rvShiftCalendar.setLayoutManager(new GridLayoutManager(this, 8)); // 8列（7天+周数标题）
+        // 设置回到今天的按钮点击事件
+        btnToday.setOnClickListener(v -> {
+            goToToday();
+        });
+
+        // 设置日历视图的触摸监听器
+        rvShiftCalendar.setOnTouchListener((v, event) -> {
+            gestureDetector.onTouchEvent(event);
+            return false;
+        });
+
+        rvShiftCalendar.setLayoutManager(new GridLayoutManager(this, 8));
         rvWeeknumColumn.setLayoutManager(new GridLayoutManager(this, 8));
         rvWeekdayHeader.setLayoutManager(new LinearLayoutManager(this, LinearLayoutManager.HORIZONTAL, false));
         weeknumColumnAdapter = new WeeknumColumnAdapter(new ArrayList<>());
@@ -105,18 +182,17 @@ public class MainActivity extends AppCompatActivity {
         // 3. 更新日历显示
         updateCalendarDisplay();
 
-        // 4. 设置导航按钮点击事件
-        btnPreviousMonth.setOnClickListener(v -> {
-            navigateMonth(-1); // 上个月
-        });
-
-        btnNextMonth.setOnClickListener(v -> {
-            navigateMonth(1); // 下个月
-        });
-
         // 初始化时更新班组天数显示
         calculateTeamDays();
         updateTeamDaysDisplay();
+
+        // 获取跳转到闹钟设置页面的按钮引用
+        btnGoToAlarmSettings = findViewById(R.id.btn_go_to_alarm_settings);
+
+        // 为跳转按钮设置点击事件监听器
+        btnGoToAlarmSettings.setOnClickListener(v -> {
+            goToAlarmSettings();
+        });
 
         ViewCompat.setOnApplyWindowInsetsListener(findViewById(R.id.main), (v, insets) -> {
             Insets systemBars = insets.getInsets(WindowInsetsCompat.Type.systemBars());
@@ -266,16 +342,17 @@ public class MainActivity extends AppCompatActivity {
                 Log.d("TeamColorDebug", "Selected team: " + currentSelectedTeam);
                 // 保存当前选择的班组
                 sp.edit().putString("last_selected_team", currentSelectedTeam).apply();
-                // 设置背景色（假设colors.xml中有对应颜色，如color_+currentSelectedTeam）
+                // 设置背景色
                 String colorResName = "team_" + currentSelectedTeam;
                 int colorResId = getResources().getIdentifier(colorResName, "color", getPackageName());
                 if (colorResId != 0) {
-                    // 使用ContextCompat避免过时API
                     spinnerTeamSelector.setBackgroundColor(ContextCompat.getColor(MainActivity.this, colorResId));
                 }
                 updateTeamDaysDisplay();
+                
+                // 检查当前班组是否在今天上班
+                checkAndSetAlarm();
             }
-
 
             @Override
             public void onNothingSelected(AdapterView<?> parent) {}
@@ -283,11 +360,77 @@ public class MainActivity extends AppCompatActivity {
 
         // 初始化显示
         RecyclerView rvTeamDays = findViewById(R.id.rv_team_days);
-        rvTeamDays.setLayoutManager(new LinearLayoutManager(this)); // 补充LayoutManager设置
+        rvTeamDays.setLayoutManager(new LinearLayoutManager(this));
         TeamDaysAdapter teamDaysAdapter = new TeamDaysAdapter(new ArrayList<>(teamDaysMap.entrySet()), currentSelectedTeam);
         rvTeamDays.setAdapter(teamDaysAdapter);
         updateTeamDaysDisplay();
         rvTeamDays.setAdapter(teamDaysAdapter);
+    }
+
+    private void checkAndSetAlarm() {
+        // 此方法不再用于设置闹钟，保留或移除取决于后续需求
+        // 如果只是为了检查权限，可以保留一部分逻辑
+         if (!PermissionHelper.checkAlarmPermission(this)) {
+            Log.e(TAG, "没有设置闹钟的权限");
+            Toast.makeText(this, "需要闹钟权限才能设置班次提醒", Toast.LENGTH_LONG).show();
+            PermissionHelper.requestAlarmPermission(this, new PermissionHelper.PermissionCallback() {
+                @Override
+                public void onPermissionGranted() {
+                    // 权限获取后不做任何操作或根据需要刷新UI
+                }
+
+                @Override
+                public void onPermissionDenied() {
+                    // 权限被拒绝
+                    Log.e(TAG, "闹钟权限被拒绝");
+                }
+            });
+        }
+    }
+
+    private void goToAlarmSettings() {
+        if (currentSelectedTeam == null || currentSelectedTeam.isEmpty()) {
+            Toast.makeText(this, "请先选择班组", Toast.LENGTH_SHORT).show();
+            return;
+        }
+
+         // 获取从今天到下一周今天的班次数据
+        LocalDate today = LocalDate.now();
+        LocalDate nextWeekToday = today.plusDays(7);
+
+        List<DayShiftGroup> shiftDataInRange = new ArrayList<>();
+        for (DayShiftGroup group : allData.values()) {
+            if (group.date != null) {
+                try {
+                    LocalDate date = LocalDate.parse(group.date, DateTimeFormatter.ISO_LOCAL_DATE);
+                    if (!date.isBefore(today) && !date.isAfter(nextWeekToday)) {
+                        shiftDataInRange.add(group);
+                    }
+                } catch (Exception e) {
+                    Log.e(TAG, "解析日期失败", e);
+                }
+            }
+        }
+
+        // 检查是否有班次
+        boolean hasShift = false;
+         for (DayShiftGroup dayData : shiftDataInRange) {
+            if (dayData.dayTeams.contains(currentSelectedTeam) || dayData.nightTeams.contains(currentSelectedTeam)) {
+                hasShift = true;
+                break;
+            }
+        }
+
+        if (!hasShift) {
+             Toast.makeText(this, "从今天到下一周今天没有班次", Toast.LENGTH_SHORT).show();
+             return;
+        }
+
+        Intent intent = new Intent(this, AlarmSettingsActivity.class);
+        intent.putExtra("selectedTeam", currentSelectedTeam);
+        // 将班次数据作为Serializable传递
+        intent.putExtra("shiftData", (Serializable) shiftDataInRange);
+        startActivity(intent);
     }
 
     private void navigateMonth(int monthOffset) {
@@ -392,7 +535,7 @@ public class MainActivity extends AppCompatActivity {
             
             // 获取假期信息（参考https://6tail.cn/calendar/api.html）
             // 由于 year 变量已在方法参数中存在，避免重复定义，直接使用方法参数中的 year
-            // 此处无需重新定义 year 变量，直接使用传入的 year 参数即可
+            // 此处无需重新定义 year 变量，直接使用方法参数中的 year 参数即可
             // 由于方法参数中已有 month 变量，此处直接使用方法参数中的 month，避免重复定义
             // 因此删除此局部变量的定义，无需重新获取月份值
             // int dayOfMonth = date.getDayOfMonth();
@@ -558,4 +701,69 @@ public class MainActivity extends AppCompatActivity {
     }
     return result;
 }
+
+    private void initPermissionRequests() {
+        notificationPermissionLauncher = registerForActivityResult(
+            new ActivityResultContracts.RequestPermission(),
+            isGranted -> {
+                if (isGranted) {
+                    // 通知权限已授予
+                    Log.d(TAG, "通知权限已授予");
+                } else {
+                    // 通知权限被拒绝
+                    Log.d(TAG, "通知权限被拒绝");
+                    Toast.makeText(this, "需要通知权限才能发送班次提醒", Toast.LENGTH_LONG).show();
+                    PermissionHelper.openAppSettings(this);
+                }
+            }
+        );
+    }
+
+    private void checkAndRequestPermissions() {
+        // 请求闹钟权限
+        PermissionHelper.requestAlarmPermission(this, new PermissionHelper.PermissionCallback() {
+            @Override
+            public void onPermissionGranted() {
+                // 闹钟权限已授予，继续请求通知权限
+                requestNotificationPermission();
+            }
+
+            @Override
+            public void onPermissionDenied() {
+                // 闹钟权限被拒绝
+                Log.d(TAG, "闹钟权限被拒绝");
+            }
+        });
+    }
+
+    private void requestNotificationPermission() {
+        PermissionHelper.requestNotificationPermission(this, notificationPermissionLauncher,
+            new PermissionHelper.PermissionCallback() {
+                @Override
+                public void onPermissionGranted() {
+                    // 通知权限已授予
+                    Log.d(TAG, "通知权限已授予");
+                }
+
+                @Override
+                public void onPermissionDenied() {
+                    // 通知权限被拒绝
+                    Log.d(TAG, "通知权限被拒绝");
+                }
+            });
+    }
+
+    public ActivityResultLauncher<String> getNotificationPermissionLauncher() {
+        return notificationPermissionLauncher;
+    }
+
+    // 添加回到今天的方法
+    private void goToToday() {
+        currentDate = LocalDate.now();
+        currentYear = currentDate.getYear();
+        currentMonth = currentDate.getMonthValue();
+        updateCalendarDisplay();
+        calculateTeamDays();
+        updateTeamDaysDisplay();
+    }
 }
