@@ -54,6 +54,11 @@ import java.io.Serializable; // 添加Serializable导入
 import android.view.GestureDetector;
 import android.view.MotionEvent;
 import android.view.ScaleGestureDetector;
+import android.app.NotificationManager;
+import android.app.PendingIntent;
+import java.util.Calendar;
+import java.util.concurrent.TimeUnit;
+import java.util.Date; // 导入 Date 类用于日志打印
 
 public class MainActivity extends AppCompatActivity {
     private static final String TAG = "MainActivity";
@@ -100,6 +105,16 @@ public class MainActivity extends AppCompatActivity {
         super.onCreate(savedInstanceState);
         EdgeToEdge.enable(this);
         setContentView(R.layout.activity_main);
+
+        // 检查并引导用户授权勿扰模式权限
+        NotificationManager notificationManager = (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && notificationManager != null && !notificationManager.isNotificationPolicyAccessGranted()) {
+            Intent intent = new Intent(android.provider.Settings.ACTION_NOTIFICATION_POLICY_ACCESS_SETTINGS);
+            startActivity(intent);
+            Toast.makeText(this, "请授权勿扰模式控制权限，否则无法自动切换勿扰模式", Toast.LENGTH_LONG).show();
+        }
+        // 设置勿扰定时任务
+        // MainActivity.setDndAlarms(this); // 移除自动设置勿扰定时任务的代码
 
         // 初始化手势检测器
         gestureDetector = new GestureDetector(this, new GestureDetector.SimpleOnGestureListener() {
@@ -351,7 +366,10 @@ public class MainActivity extends AppCompatActivity {
                 updateTeamDaysDisplay();
                 
                 // 检查当前班组是否在今天上班
-                checkAndSetAlarm();
+                // checkAndSetAlarm(); // 此处不再设置普通闹钟，移除或修改
+
+                // 切换班组时，重新设置勿扰定时任务
+                setDndAlarms(MainActivity.this);
             }
 
             @Override
@@ -765,5 +783,195 @@ public class MainActivity extends AppCompatActivity {
         updateCalendarDisplay();
         calculateTeamDays();
         updateTeamDaysDisplay();
+    }
+
+    /**
+     * 根据班组和日期判断班次类型
+     * @param team 班组名称
+     * @param date 日期
+     * @return 0: 无班次, 1: 白班, 2: 夜班
+     */
+    private int getShiftTypeForTeamOnDate(String team, LocalDate date) {
+        if (allData == null || team == null || date == null) {
+            return 0; // 无效输入
+        }
+
+        DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd");
+        String dateStr = date.format(formatter);
+        DayShiftGroup dayShiftGroup = allData.get(dateStr);
+
+        if (dayShiftGroup != null) {
+            if (dayShiftGroup.dayTeams.contains(team)) {
+                return 1; // 白班
+            } else if (dayShiftGroup.nightTeams.contains(team)) {
+                return 2; // 夜班
+            }
+        }
+        return 0; // 无班次
+    }
+
+    /**
+     * 设置勿扰模式定时任务：计算下一个最近的开启/关闭时间并设置精确闹钟
+     */
+    public static void setDndAlarms(Context context) {
+        Log.d(TAG, "setDndAlarms 被调用");
+
+        // 打印调用栈
+        try {
+            throw new Exception("Call stack");
+        } catch (Exception e) {
+            Log.d(TAG, "Call stack: ", e);
+        }
+
+        // 检查用户是否已经设置过勿扰模式
+        SharedPreferences appPrefs = context.getSharedPreferences("app_prefs", Context.MODE_PRIVATE);
+        boolean dndSettingsConfigured = appPrefs.getBoolean("dnd_settings_configured", false); // 默认未设置
+        Log.d(TAG, "dnd_settings_configured 读取值为: " + dndSettingsConfigured);
+
+        if (!dndSettingsConfigured) {
+            Log.d(TAG, "用户尚未设置勿扰模式，跳过设置定时任务。");
+            return;
+        }
+
+        AlarmManager alarmManager = (AlarmManager) context.getSystemService(Context.ALARM_SERVICE);
+        if (alarmManager == null) {
+            Log.e(TAG, "AlarmManager 为空");
+            return;
+        }
+
+        // 取消之前设置的所有 DND 定时任务，避免重复
+        cancelDndAlarms(context);
+
+        // 从 SharedPreferences 读取当前选中的班组
+        String currentSelectedTeam = appPrefs.getString("last_selected_team", "");
+
+        if (currentSelectedTeam.isEmpty()) {
+            Log.d(TAG, "未选择班组，不设置勿扰定时任务");
+            return;
+        }
+
+        // Needs to access allData to determine shift type, but allData is a non-static member, cannot be accessed directly
+        // Consider moving shift type determination logic here, or pass necessary data via parameters
+        // Temporary solution: read DND time based on shift type saved from AlarmSettingsActivity, but this cannot handle team switching
+
+        // Better solution: read all shift data from SharedPreferences and determine shift type in setDndAlarms
+        // This requires modifying AlarmSettingsActivity to also save shiftDataInRange to SharedPreferences when setting DND
+
+        // Let's first implement a compromise: read the last set shift type and all DND time intervals from alarm_settings_prefs
+        // and decide which interval to use based on the current selected team and today's shift type
+
+        SharedPreferences alarmSettingsPrefs = context.getSharedPreferences("alarm_settings_prefs", Context.MODE_PRIVATE);
+        
+        // TODO: Here, need to determine whether to use day or night DND interval based on the current selected team and today's shift type
+        // Temporarily using day interval, needs subsequent modification
+        int startHour = alarmSettingsPrefs.getInt("current_dnd_start_hour", 22);
+        int startMinute = alarmSettingsPrefs.getInt("current_dnd_start_minute", 0);
+        int endHour = alarmSettingsPrefs.getInt("current_dnd_end_hour", 7);
+        int endMinute = alarmSettingsPrefs.getInt("current_dnd_end_minute", 0);
+
+        Log.d(TAG, "读取的当前生效勿扰区间: " + startHour + ":" + startMinute + " - " + endHour + ":" + endMinute);
+
+        // Calculate next DND start time
+        Calendar nextOnTime = Calendar.getInstance();
+        nextOnTime.set(Calendar.HOUR_OF_DAY, startHour);
+        nextOnTime.set(Calendar.MINUTE, startMinute);
+        nextOnTime.set(Calendar.SECOND, 0);
+        nextOnTime.set(Calendar.MILLISECOND, 0);
+        if (nextOnTime.before(Calendar.getInstance())) {
+            nextOnTime.add(Calendar.DAY_OF_MONTH, 1);
+        }
+
+        // Calculate next DND end time
+        Calendar nextOffTime = Calendar.getInstance();
+        nextOffTime.set(Calendar.HOUR_OF_DAY, endHour);
+        nextOffTime.set(Calendar.MINUTE, endMinute);
+        nextOffTime.set(Calendar.SECOND, 0);
+        nextOffTime.set(Calendar.MILLISECOND, 0);
+        if (nextOffTime.before(Calendar.getInstance())) {
+            nextOffTime.add(Calendar.DAY_OF_MONTH, 1);
+        }
+
+        Log.d(TAG, "当前时间: " + Calendar.getInstance().getTime());
+        Log.d(TAG, "下一个开启时间: " + nextOnTime.getTime());
+        Log.d(TAG, "下一个关闭时间: " + nextOffTime.getTime());
+
+        // 确定下一个最近的定时任务是开启还是关闭
+        Intent nextAlarmIntent = null;
+        PendingIntent nextAlarmPendingIntent = null;
+        long nextAlarmTimeMillis = 0;
+        
+        // 直接比较下一个开启时间和下一个关闭时间，选择更近的一个设置定时任务
+        if (nextOnTime.before(nextOffTime)) {
+            // 下一个最近的是开启时间
+            nextAlarmIntent = new Intent(context, DndAlarmReceiver.class);
+            nextAlarmIntent.putExtra("ENABLE_DND", true);
+            nextAlarmPendingIntent = PendingIntent.getBroadcast(context, 1001, nextAlarmIntent, 
+                PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE | PendingIntent.FLAG_ONE_SHOT);
+            nextAlarmTimeMillis = nextOnTime.getTimeInMillis();
+            Log.d(TAG, "下一个定时任务是开启勿扰: " + nextOnTime.getTime());
+        } else {
+            // 下一个最近的是关闭时间
+            nextAlarmIntent = new Intent(context, DndAlarmReceiver.class);
+            nextAlarmIntent.putExtra("ENABLE_DND", false);
+            nextAlarmPendingIntent = PendingIntent.getBroadcast(context, 1002, nextAlarmIntent, 
+                PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE | PendingIntent.FLAG_ONE_SHOT);
+            nextAlarmTimeMillis = nextOffTime.getTimeInMillis();
+            Log.d(TAG, "下一个定时任务是关闭勿扰: " + nextOffTime.getTime());
+        }
+
+        // 设置精确的定时任务
+        if (nextAlarmPendingIntent != null) {
+            try {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                    if (alarmManager.canScheduleExactAlarms()) {
+                        // 使用 setAlarmClock，它在某些设备上可能有更高优先级
+                        AlarmManager.AlarmClockInfo alarmClockInfo = new AlarmManager.AlarmClockInfo(nextAlarmTimeMillis, null);
+                        alarmManager.setAlarmClock(alarmClockInfo, nextAlarmPendingIntent);
+                        Log.d(TAG, "已使用 setAlarmClock 设置定时任务 at: " + new Date(nextAlarmTimeMillis).toString());
+                    } else {
+                        // 如果无法设置精确闹钟，退回到 setExactAndAllowWhileIdle
+                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                            alarmManager.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, nextAlarmTimeMillis, nextAlarmPendingIntent);
+                            Log.d(TAG, "退回到 setExactAndAllowWhileIdle 设置定时任务");
+                        } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
+                            alarmManager.setExact(AlarmManager.RTC_WAKEUP, nextAlarmTimeMillis, nextAlarmPendingIntent);
+                            Log.d(TAG, "退回到 setExact 设置定时任务");
+                        } else {
+                            alarmManager.set(AlarmManager.RTC_WAKEUP, nextAlarmTimeMillis, nextAlarmPendingIntent);
+                            Log.d(TAG, "退回到 set 设置定时任务");
+                        }
+                    }
+                } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
+                    alarmManager.setExact(AlarmManager.RTC_WAKEUP, nextAlarmTimeMillis, nextAlarmPendingIntent);
+                    Log.d(TAG, "已使用 setExact 设置定时任务 (pre-M) at: " + new Date(nextAlarmTimeMillis).toString());
+                } else {
+                    alarmManager.set(AlarmManager.RTC_WAKEUP, nextAlarmTimeMillis, nextAlarmPendingIntent);
+                    Log.d(TAG, "已使用 set 设置定时任务 (pre-KITKAT) at: " + new Date(nextAlarmTimeMillis).toString());
+                }
+            } catch (Exception e) {
+                Log.e(TAG, "设置定时任务失败", e);
+            }
+        }
+    }
+
+    /**
+     * 取消之前设置的所有 DND 定时任务
+     */
+    public static void cancelDndAlarms(Context context) {
+         Log.d(TAG, "cancelDndAlarms 被调用");
+        AlarmManager alarmManager = (AlarmManager) context.getSystemService(Context.ALARM_SERVICE);
+        if (alarmManager == null) return;
+
+        // 取消开启勿扰的 PendingIntent
+        Intent dndOnIntent = new Intent(context, DndAlarmReceiver.class);
+        PendingIntent dndOnPendingIntent = PendingIntent.getBroadcast(context, 1001, dndOnIntent, PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
+        alarmManager.cancel(dndOnPendingIntent);
+        Log.d(TAG, "已取消勿扰开启定时任务");
+
+        // 取消关闭勿扰的 PendingIntent
+        Intent dndOffIntent = new Intent(context, DndAlarmReceiver.class);
+        PendingIntent dndOffPendingIntent = PendingIntent.getBroadcast(context, 1002, dndOffIntent, PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
+        alarmManager.cancel(dndOffPendingIntent);
+        Log.d(TAG, "已取消勿扰关闭定时任务");
     }
 }

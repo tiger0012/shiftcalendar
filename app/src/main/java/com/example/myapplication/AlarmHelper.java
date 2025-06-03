@@ -190,6 +190,30 @@ public class AlarmHelper {
         }
     }
 
+    /**
+     * 创建勿扰模式设置成功的通知
+     */
+    public static void createDndSettingNotification(Context context, String title, String text) {
+        createNotificationChannel(context);
+
+        NotificationCompat.Builder builder = new NotificationCompat.Builder(context, CHANNEL_ID)
+            .setSmallIcon(R.drawable.ic_launcher_foreground) // 使用你的应用图标
+            .setContentTitle(title)
+            .setContentText(text)
+            .setPriority(NotificationCompat.PRIORITY_DEFAULT)
+            .setAutoCancel(true); // 点击通知后自动关闭
+
+        NotificationManagerCompat notificationManager = NotificationManagerCompat.from(context);
+
+        // 检查通知权限
+        if (ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED) {
+            notificationManager.notify(NOTIFICATION_ID + 1, builder.build()); // 使用一个不同的通知ID
+        } else {
+            Log.w(TAG, "没有通知权限，无法显示勿扰模式设置通知");
+            // 可以在这里提示用户去开启通知权限
+        }
+    }
+
     public static void cancelShiftAlarm(Context context) {
         // 尝试使用小米闹钟API取消闹钟
         try {
