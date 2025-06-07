@@ -1,14 +1,17 @@
 <?xml version="1.0" encoding="utf-8"?>
 <FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
-    android:layout_height="match_parent">
+    android:layout_height="match_parent"
+    android:background="@drawable/weeknum_column_background"
+    android:layout_margin="2dp">
     <TextView
         android:id="@+id/tv_weeknum"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:text=""
-        android:textSize="14sp"
-        android:textColor="#FF4444"
+        android:textSize="12sp"
+        android:textColor="@color/weeknum_text_color"
+        android:textStyle="bold"
         android:gravity="center"
         android:layout_gravity="center"
         android:padding="4dp"/>

@@ -160,7 +160,6 @@ public class MainActivity extends AppCompatActivity {
 
         rvShiftCalendar = findViewById(R.id.rv_shift_calendar);
         rvWeeknumColumn = findViewById(R.id.rv_weeknum_column);
-        RecyclerView rvWeekdayHeader = findViewById(R.id.rv_weekday_header);
         tvCurrentMonth = findViewById(R.id.tv_current_month);
         btnToday = findViewById(R.id.btn_today);
 
@@ -177,14 +176,10 @@ public class MainActivity extends AppCompatActivity {
 
         rvShiftCalendar.setLayoutManager(new GridLayoutManager(this, 8));
         rvWeeknumColumn.setLayoutManager(new GridLayoutManager(this, 8));
-        rvWeekdayHeader.setLayoutManager(new LinearLayoutManager(this, LinearLayoutManager.HORIZONTAL, false));
         weeknumColumnAdapter = new WeeknumColumnAdapter(new ArrayList<>());
         rvWeeknumColumn.setAdapter(weeknumColumnAdapter);
         
-        // 初始化周几标题适配器
-        List<String> weekdays = Arrays.asList("周日", "周一", "周二", "周三", "周四", "周五", "周六");
-        WeekdayHeaderAdapter weekdayHeaderAdapter = new WeekdayHeaderAdapter(weekdays);
-        rvWeekdayHeader.setAdapter(weekdayHeaderAdapter);
+        // 初始化周几标题适配器不再需要，因为我们直接在布局中使用include标签
 
         // 1. 读取CSV，转为Map<String, DayShiftGroup> (只读一次)
         allData = readShiftGroupsFromCSV();
@@ -866,7 +861,7 @@ public class MainActivity extends AppCompatActivity {
         // Temporarily using day interval, needs subsequent modification
         int startHour = alarmSettingsPrefs.getInt("current_dnd_start_hour", 22);
         int startMinute = alarmSettingsPrefs.getInt("current_dnd_start_minute", 0);
-        int endHour = alarmSettingsPrefs.getInt("current_dnd_end_hour", 7);
+        int endHour = alarmSettingsPrefs.getInt("current_dnd_end_hour", 6);
         int endMinute = alarmSettingsPrefs.getInt("current_dnd_end_minute", 0);
 
         Log.d(TAG, "读取的当前生效勿扰区间: " + startHour + ":" + startMinute + " - " + endHour + ":" + endMinute);

@@ -75,6 +75,8 @@
             </intent-filter>
         </receiver>
 
+        <receiver android:name=".NapAlarmReceiver" />
+
         <service
             android:name=".AlarmService"
             android:enabled="true"

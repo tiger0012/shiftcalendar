@@ -17,4 +17,16 @@
     <color name="transparent">#00000000</color>
     <color name="team_default">#BDBDBD</color>
     <color name="holiday_red">#FF0000</color> <!-- 假期背景红色 -->
+    
+    <!-- 新增美化颜色 -->
+    <color name="calendar_background">#FAFAFA</color>
+    <color name="calendar_day_background">#F5F5F5</color>
+    <color name="weekend_day_background">#F0F0F0</color>
+    <color name="today_background">#E3F2FD</color>
+    <color name="today_border">#2196F3</color>
+    <color name="weekday_header_background">#E1F5FE</color>
+    <color name="weekday_text_color">#0D47A1</color>
+    <color name="weekend_text_color">#D32F2F</color>
+    <color name="month_title_text_color">#FFFFFF</color>
+    <color name="weeknum_text_color">#757575</color>
 </resources>

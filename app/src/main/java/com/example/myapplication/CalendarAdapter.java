@@ -157,16 +157,42 @@ private void precomputeWeeknumCache() {
                 createTeamViews(dayHolder.teamContainerDay, day.dayTeams, dayHolder.itemView.getContext());
                 createTeamViews(dayHolder.teamContainerNight, day.nightTeams, dayHolder.itemView.getContext());
                 
-                // 高亮今天
-if(day.isToday) {
-    dayHolder.tvDay.setTextColor(Color.WHITE);
-    dayHolder.tvDay.setBackgroundResource(R.drawable.today_highlight_bg);
-    dayHolder.itemView.setBackgroundResource(R.drawable.today_highlight_bg);
-} else {
-    dayHolder.tvDay.setTextColor(ContextCompat.getColor(dayHolder.itemView.getContext(), day.getLunarTextColor()));
-    dayHolder.tvDay.setBackgroundColor(ContextCompat.getColor(dayHolder.itemView.getContext(), day.getLunarBgColor()));
-    dayHolder.itemView.setBackgroundColor(Color.TRANSPARENT);
-}
+                // 应用新的样式
+                Context context = dayHolder.itemView.getContext();
+                
+                // 设置日期项背景
+                if(day.isToday) {
+                    // 今天的样式
+                    dayHolder.itemView.setBackgroundResource(R.drawable.today_background);
+                    dayHolder.tvDay.setSelected(true);
+                } else {
+                    // 判断是否是周末（周六或周日）
+                    if (day.date != null) {
+                        int dayOfWeek = day.date.getDayOfWeek().getValue() % 7; // 0 = 周日, 6 = 周六
+                        if (dayOfWeek == 0 || dayOfWeek == 6) {
+                            // 周末样式
+                            dayHolder.itemView.setBackgroundResource(R.drawable.weekend_day_background);
+                            dayHolder.tvDay.setTextColor(ContextCompat.getColor(context, R.color.weekend_text_color));
+                        } else {
+                            // 工作日样式
+                            dayHolder.itemView.setBackgroundResource(R.drawable.calendar_day_background);
+                            dayHolder.tvDay.setTextColor(ContextCompat.getColor(context, R.color.primary_text_color));
+                        }
+                    } else {
+                        // 默认样式
+                        dayHolder.itemView.setBackgroundResource(R.drawable.calendar_day_background);
+                        dayHolder.tvDay.setTextColor(ContextCompat.getColor(context, R.color.primary_text_color));
+                    }
+                    
+                    // 设置农历背景色
+                    if (day.getLunarBgColor() != R.color.transparent) {
+                        dayHolder.tvDay.setBackgroundColor(ContextCompat.getColor(context, day.getLunarBgColor()));
+                    } else {
+                        dayHolder.tvDay.setBackgroundColor(Color.TRANSPARENT);
+                    }
+                    
+                    dayHolder.tvDay.setSelected(false);
+                }
             }
         }
     }

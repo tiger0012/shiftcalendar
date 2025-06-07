@@ -1,18 +1,25 @@
 package com.example.myapplication;
 
 import androidx.appcompat.app.AppCompatActivity;
+import android.app.AlarmManager;
 import android.app.NotificationManager;
+import android.app.PendingIntent;
 import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
 import android.os.Build;
 import android.os.Bundle;
 import android.provider.Settings;
+import android.provider.AlarmClock;
 import android.util.Log;
 import android.view.View;
+import android.widget.ArrayAdapter;
 import android.widget.Button;
+import android.widget.Spinner;
 import android.widget.TimePicker;
 import android.widget.Toast;
+import android.app.TimePickerDialog;
+import android.widget.TextView;
 
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
@@ -24,17 +31,34 @@ public class AlarmSettingsActivity extends AppCompatActivity {
 
     private static final String TAG = "AlarmSettingsActivity";
 
-    private TimePicker timePickerDayShift;
-    private TimePicker timePickerNightShift;
-    private TimePicker timePickerDndStart;
-    private TimePicker timePickerDndEnd;
-    private TimePicker timePickerDndNightStart;
-    private TimePicker timePickerDndNightEnd;
+    private TextView tvDayShiftTime;
+    private TextView tvNightShiftTime;
+    private TextView tvDndStartTime;
+    private TextView tvDndEndTime;
+    private TextView tvDndNightStartTime;
+    private TextView tvDndNightEndTime;
+    private TextView tvNapDuration;
     private Button btnSetCustomAlarm;
     private Button btnSetDnd;
+    private Button btnSetNapDnd;
 
     private String currentSelectedTeam;
     private List<DayShiftGroup> shiftDataInRange;
+
+    private int dayShiftHour = 6;
+    private int dayShiftMinute = 0;
+    private int nightShiftHour = 18;
+    private int nightShiftMinute = 0;
+    private int dndStartHour = 22;
+    private int dndStartMinute = 0;
+    private int dndEndHour = 6;
+    private int dndEndMinute = 0;
+    private int dndNightStartHour = 9;
+    private int dndNightStartMinute = 0;
+    private int dndNightEndHour = 18;
+    private int dndNightEndMinute = 0;
+    private int napHour = 0;
+    private int napMinute = 35;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -54,53 +78,25 @@ public class AlarmSettingsActivity extends AppCompatActivity {
         }
 
         // 初始化控件
-        timePickerDayShift = findViewById(R.id.time_picker_day_shift);
-        timePickerNightShift = findViewById(R.id.time_picker_night_shift);
-        timePickerDndStart = findViewById(R.id.time_picker_dnd_start);
-        timePickerDndEnd = findViewById(R.id.time_picker_dnd_end);
-        timePickerDndNightStart = findViewById(R.id.time_picker_dnd_night_start);
-        timePickerDndNightEnd = findViewById(R.id.time_picker_dnd_night_end);
+        tvDayShiftTime = findViewById(R.id.tv_day_shift_time);
+        tvNightShiftTime = findViewById(R.id.tv_night_shift_time);
+        tvDndStartTime = findViewById(R.id.tv_dnd_start_time);
+        tvDndEndTime = findViewById(R.id.tv_dnd_end_time);
+        tvDndNightStartTime = findViewById(R.id.tv_dnd_night_start_time);
+        tvDndNightEndTime = findViewById(R.id.tv_dnd_night_end_time);
+        tvNapDuration = findViewById(R.id.tv_nap_duration);
         btnSetCustomAlarm = findViewById(R.id.btn_set_custom_alarm);
         btnSetDnd = findViewById(R.id.btn_set_dnd);
-
-        // 确保使用24小时制
-        timePickerDayShift.setIs24HourView(true);
-        timePickerNightShift.setIs24HourView(true);
-        timePickerDndStart.setIs24HourView(true);
-        timePickerDndEnd.setIs24HourView(true);
-        timePickerDndNightStart.setIs24HourView(true);
-        timePickerDndNightEnd.setIs24HourView(true);
+        btnSetNapDnd = findViewById(R.id.btn_set_nap_dnd);
 
         // 从 SharedPreferences 加载保存的时间
-        Log.d(TAG, "尝试从 SharedPreferences 加载时间");
-        SharedPreferences sp = getSharedPreferences("alarm_settings_prefs", MODE_PRIVATE);
-        int dayShiftHour = sp.getInt("day_shift_hour", 6);
-        int dayShiftMinute = sp.getInt("day_shift_minute", 0);
-        int nightShiftHour = sp.getInt("night_shift_hour", 18);
-        int nightShiftMinute = sp.getInt("night_shift_minute", 0);
-        int dndStartHour = sp.getInt("dnd_start_hour", 22);
-        int dndStartMinute = sp.getInt("dnd_start_minute", 0);
-        int dndEndHour = sp.getInt("dnd_end_hour", 7);
-        int dndEndMinute = sp.getInt("dnd_end_minute", 0);
-        int dndNightStartHour = sp.getInt("dnd_night_start_hour", 22);
-        int dndNightStartMinute = sp.getInt("dnd_night_start_minute", 0);
-        int dndNightEndHour = sp.getInt("dnd_night_end_hour", 7);
-        int dndNightEndMinute = sp.getInt("dnd_night_end_minute", 0);
+        loadSavedTimes();
 
-        Log.d(TAG, "加载的时间：白班 " + dayShiftHour + ":" + dayShiftMinute + ", 夜班 " + nightShiftHour + ":" + nightShiftMinute + ", 勿扰开启 " + dndStartHour + ":" + dndStartMinute + ", 勿扰关闭 " + dndEndHour + ":" + dndEndMinute + ", 夜班勿扰开启 " + dndNightStartHour + ":" + dndNightStartMinute + ", 夜班勿扰关闭 " + dndNightEndHour + ":" + dndNightEndMinute);
+        // 设置时间显示
+        updateTimeDisplay();
 
-        timePickerDayShift.setHour(dayShiftHour);
-        timePickerDayShift.setMinute(dayShiftMinute);
-        timePickerNightShift.setHour(nightShiftHour);
-        timePickerNightShift.setMinute(nightShiftMinute);
-        timePickerDndStart.setHour(dndStartHour);
-        timePickerDndStart.setMinute(dndStartMinute);
-        timePickerDndEnd.setHour(dndEndHour);
-        timePickerDndEnd.setMinute(dndEndMinute);
-        timePickerDndNightStart.setHour(dndNightStartHour);
-        timePickerDndNightStart.setMinute(dndNightStartMinute);
-        timePickerDndNightEnd.setHour(dndNightEndHour);
-        timePickerDndNightEnd.setMinute(dndNightEndMinute);
+        // 设置点击事件
+        setupTimeClickListeners();
 
         // 为设置自定义闹钟按钮添加点击事件监听器
         btnSetCustomAlarm.setOnClickListener(v -> {
@@ -112,19 +108,126 @@ public class AlarmSettingsActivity extends AppCompatActivity {
             setDoNotDisturb();
         });
 
+        // 为设置午睡勿扰按钮添加点击事件监听器
+        btnSetNapDnd.setOnClickListener(v -> {
+            setNapDoNotDisturb();
+        });
+
         // 检查并请求闹钟和通知权限
         checkAndRequestPermissions();
+    }
+
+    private void loadSavedTimes() {
+        SharedPreferences sp = getSharedPreferences("alarm_settings_prefs", MODE_PRIVATE);
+        dayShiftHour = sp.getInt("day_shift_hour", 6);
+        dayShiftMinute = sp.getInt("day_shift_minute", 0);
+        nightShiftHour = sp.getInt("night_shift_hour", 18);
+        nightShiftMinute = sp.getInt("night_shift_minute", 0);
+        dndStartHour = sp.getInt("dnd_start_hour", 22);
+        dndStartMinute = sp.getInt("dnd_start_minute", 0);
+        dndEndHour = sp.getInt("dnd_end_hour", 6);
+        dndEndMinute = sp.getInt("dnd_end_minute", 0);
+        dndNightStartHour = sp.getInt("dnd_night_start_hour", 9);
+        dndNightStartMinute = sp.getInt("dnd_night_start_minute", 0);
+        dndNightEndHour = sp.getInt("dnd_night_end_hour", 18);
+        dndNightEndMinute = sp.getInt("dnd_night_end_minute", 0);
+    }
+
+    private void updateTimeDisplay() {
+        tvDayShiftTime.setText(String.format("%02d:%02d", dayShiftHour, dayShiftMinute));
+        tvNightShiftTime.setText(String.format("%02d:%02d", nightShiftHour, nightShiftMinute));
+        tvDndStartTime.setText(String.format("%02d:%02d", dndStartHour, dndStartMinute));
+        tvDndEndTime.setText(String.format("%02d:%02d", dndEndHour, dndEndMinute));
+        tvDndNightStartTime.setText(String.format("%02d:%02d", dndNightStartHour, dndNightStartMinute));
+        tvDndNightEndTime.setText(String.format("%02d:%02d", dndNightEndHour, dndNightEndMinute));
+        tvNapDuration.setText(String.format("%02d:%02d", napHour, napMinute));
+    }
+
+    private void setupTimeClickListeners() {
+        tvDayShiftTime.setOnClickListener(v -> showTimePickerDialog(true, false, false, false, false, false));
+        tvNightShiftTime.setOnClickListener(v -> showTimePickerDialog(false, true, false, false, false, false));
+        tvDndStartTime.setOnClickListener(v -> showTimePickerDialog(false, false, true, false, false, false));
+        tvDndEndTime.setOnClickListener(v -> showTimePickerDialog(false, false, false, true, false, false));
+        tvDndNightStartTime.setOnClickListener(v -> showTimePickerDialog(false, false, false, false, true, false));
+        tvDndNightEndTime.setOnClickListener(v -> showTimePickerDialog(false, false, false, false, false, true));
+        tvNapDuration.setOnClickListener(v -> showTimePickerDialog(false, false, false, false, false, false));
+    }
+
+    private void showTimePickerDialog(boolean isDayShift, boolean isNightShift, 
+                                    boolean isDndStart, boolean isDndEnd,
+                                    boolean isDndNightStart, boolean isDndNightEnd) {
+        TimePickerDialog timePickerDialog = new TimePickerDialog(
+            this,
+            android.R.style.Theme_Holo_Light_Dialog_NoActionBar,
+            (view, hourOfDay, minute) -> {
+                if (isDayShift) {
+                    dayShiftHour = hourOfDay;
+                    dayShiftMinute = minute;
+                } else if (isNightShift) {
+                    nightShiftHour = hourOfDay;
+                    nightShiftMinute = minute;
+                } else if (isDndStart) {
+                    dndStartHour = hourOfDay;
+                    dndStartMinute = minute;
+                } else if (isDndEnd) {
+                    dndEndHour = hourOfDay;
+                    dndEndMinute = minute;
+                } else if (isDndNightStart) {
+                    dndNightStartHour = hourOfDay;
+                    dndNightStartMinute = minute;
+                } else if (isDndNightEnd) {
+                    dndNightEndHour = hourOfDay;
+                    dndNightEndMinute = minute;
+                } else {
+                    napHour = hourOfDay;
+                    napMinute = minute;
+                }
+                updateTimeDisplay();
+                saveAllTimes();
+            },
+            isDayShift ? dayShiftHour :
+            isNightShift ? nightShiftHour :
+            isDndStart ? dndStartHour :
+            isDndEnd ? dndEndHour :
+            isDndNightStart ? dndNightStartHour :
+            isDndNightEnd ? dndNightEndHour :
+            napHour,
+            isDayShift ? dayShiftMinute :
+            isNightShift ? nightShiftMinute :
+            isDndStart ? dndStartMinute :
+            isDndEnd ? dndEndMinute :
+            isDndNightStart ? dndNightStartMinute :
+            isDndNightEnd ? dndNightEndMinute :
+            napMinute,
+            true
+        );
+        timePickerDialog.getWindow().setBackgroundDrawableResource(android.R.color.transparent);
+        timePickerDialog.show();
+    }
+
+    private void saveAllTimes() {
+        SharedPreferences sp = getSharedPreferences("alarm_settings_prefs", MODE_PRIVATE);
+        SharedPreferences.Editor editor = sp.edit();
+
+        editor.putInt("day_shift_hour", dayShiftHour);
+        editor.putInt("day_shift_minute", dayShiftMinute);
+        editor.putInt("night_shift_hour", nightShiftHour);
+        editor.putInt("night_shift_minute", nightShiftMinute);
+        editor.putInt("dnd_start_hour", dndStartHour);
+        editor.putInt("dnd_start_minute", dndStartMinute);
+        editor.putInt("dnd_end_hour", dndEndHour);
+        editor.putInt("dnd_end_minute", dndEndMinute);
+        editor.putInt("dnd_night_start_hour", dndNightStartHour);
+        editor.putInt("dnd_night_start_minute", dndNightStartMinute);
+        editor.putInt("dnd_night_end_hour", dndNightEndHour);
+        editor.putInt("dnd_night_end_minute", dndNightEndMinute);
+
+        editor.apply();
     }
 
     private void setCustomAlarm() {
         // 保存所有时间选择器的时间
         saveAllTimes();
-
-        // 获取用户选择的白班和夜班时间
-        int dayShiftHour = timePickerDayShift.getHour();
-        int dayShiftMinute = timePickerDayShift.getMinute();
-        int nightShiftHour = timePickerNightShift.getHour();
-        int nightShiftMinute = timePickerNightShift.getMinute();
 
         // 检查白班时间是否在允许范围内 (4:00 - 8:00)
         if (dayShiftHour < 4 || dayShiftHour > 8) {
@@ -258,16 +361,16 @@ public class AlarmSettingsActivity extends AppCompatActivity {
             }
 
             if (currentShiftType == 1 || currentShiftType == 0) { // 白班或无班次时使用白班勿扰区间
-                dndStartHour = timePickerDndStart.getHour();
-                dndStartMinute = timePickerDndStart.getMinute();
-                dndEndHour = timePickerDndEnd.getHour();
-                dndEndMinute = timePickerDndEnd.getMinute();
+                dndStartHour = this.dndStartHour;
+                dndStartMinute = this.dndStartMinute;
+                dndEndHour = this.dndEndHour;
+                dndEndMinute = this.dndEndMinute;
                  Log.d(TAG, "使用白班勿扰区间: " + dndStartHour + ":" + dndStartMinute + " - " + dndEndHour + ":" + dndEndMinute);
             } else { // 夜班时使用夜班勿扰区间
-                dndStartHour = timePickerDndNightStart.getHour();
-                dndStartMinute = timePickerDndNightStart.getMinute();
-                dndEndHour = timePickerDndNightEnd.getHour();
-                dndEndMinute = timePickerDndNightEnd.getMinute();
+                dndStartHour = this.dndNightStartHour;
+                dndStartMinute = this.dndNightStartMinute;
+                dndEndHour = this.dndNightEndHour;
+                dndEndMinute = this.dndNightEndMinute;
                  Log.d(TAG, "使用夜班勿扰区间: " + dndStartHour + ":" + dndStartMinute + " - " + dndEndHour + ":" + dndEndMinute);
             }
 
@@ -378,6 +481,103 @@ public class AlarmSettingsActivity extends AppCompatActivity {
         }
     }
 
+    private void setNapDoNotDisturb() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            NotificationManager notificationManager = (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
+            if (!notificationManager.isNotificationPolicyAccessGranted()) {
+                // 权限未授予，引导用户去设置页面授权
+                Intent intent = new Intent(Settings.ACTION_NOTIFICATION_POLICY_ACCESS_SETTINGS);
+                startActivity(intent);
+                Toast.makeText(this, "请在设置中授予勿扰模式权限", Toast.LENGTH_LONG).show();
+                return;
+            }
+
+            try {
+                // 获取选择的午睡时长
+                int totalMinutes = napHour * 60 + napMinute;
+
+                if (totalMinutes == 0) {
+                    Toast.makeText(this, "请设置午睡时长", Toast.LENGTH_SHORT).show();
+                    return;
+                }
+
+                // 设置系统勿扰模式
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+                    NotificationManager.Policy policy = new NotificationManager.Policy(
+                        NotificationManager.Policy.PRIORITY_CATEGORY_ALARMS |
+                        NotificationManager.Policy.PRIORITY_CATEGORY_REMINDERS |
+                        NotificationManager.Policy.PRIORITY_CATEGORY_CALLS |
+                        NotificationManager.Policy.PRIORITY_CATEGORY_MESSAGES,
+                        NotificationManager.Policy.PRIORITY_SENDERS_ANY,
+                        0
+                    );
+                    notificationManager.setNotificationPolicy(policy);
+                }
+                notificationManager.setInterruptionFilter(NotificationManager.INTERRUPTION_FILTER_PRIORITY);
+
+                // 设置系统闹钟
+                Intent intent = new Intent(AlarmClock.ACTION_SET_ALARM);
+                Calendar calendar = Calendar.getInstance();
+                calendar.add(Calendar.HOUR_OF_DAY, napHour);
+                calendar.add(Calendar.MINUTE, napMinute);
+                
+                intent.putExtra(AlarmClock.EXTRA_HOUR, calendar.get(Calendar.HOUR_OF_DAY));
+                intent.putExtra(AlarmClock.EXTRA_MINUTES, calendar.get(Calendar.MINUTE));
+                intent.putExtra(AlarmClock.EXTRA_MESSAGE, "午睡结束提醒");
+                intent.putExtra(AlarmClock.EXTRA_SKIP_UI, false);
+                intent.putExtra(AlarmClock.EXTRA_VIBRATE, true);
+                intent.putExtra(AlarmClock.EXTRA_RINGTONE, "content://settings/system/alarm_alert");
+
+                // 启动系统闹钟应用
+                if (intent.resolveActivity(getPackageManager()) != null) {
+                    startActivity(intent);
+                } else {
+                    Toast.makeText(this, "未找到可用的闹钟应用，请手动设置闹钟。", Toast.LENGTH_LONG).show();
+                    Log.e(TAG, "未找到可处理 AlarmClock.ACTION_SET_ALARM 的应用");
+                }
+
+                // 创建广播接收器的PendingIntent
+                Intent napIntent = new Intent(this, NapAlarmReceiver.class);
+                PendingIntent napPendingIntent = PendingIntent.getBroadcast(
+                    this,
+                    0,
+                    napIntent,
+                    PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE
+                );
+
+                // 设置闹钟
+                AlarmManager alarmManager = (AlarmManager) getSystemService(Context.ALARM_SERVICE);
+                if (alarmManager != null) {
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                        alarmManager.setExactAndAllowWhileIdle(
+                            AlarmManager.RTC_WAKEUP,
+                            calendar.getTimeInMillis(),
+                            napPendingIntent
+                        );
+                    } else {
+                        alarmManager.setExact(
+                            AlarmManager.RTC_WAKEUP,
+                            calendar.getTimeInMillis(),
+                            napPendingIntent
+                        );
+                    }
+                }
+
+                // 显示通知和Toast
+                String notificationTitle = "午睡勿扰已开启";
+                String notificationText = String.format("将在%d小时%d分钟后结束勿扰模式", napHour, napMinute);
+                AlarmHelper.createDndSettingNotification(this, notificationTitle, notificationText);
+                Toast.makeText(this, notificationTitle + "\n" + notificationText, Toast.LENGTH_LONG).show();
+
+            } catch (Exception e) {
+                Log.e(TAG, "设置午睡勿扰模式失败", e);
+                Toast.makeText(this, "设置午睡勿扰模式失败，请重试", Toast.LENGTH_SHORT).show();
+            }
+        } else {
+            Toast.makeText(this, "您的设备不支持此功能", Toast.LENGTH_SHORT).show();
+        }
+    }
+
     private void checkAndRequestPermissions() {
         // 请求闹钟权限
         PermissionHelper.requestAlarmPermission(this, new PermissionHelper.PermissionCallback() {
@@ -405,30 +605,5 @@ public class AlarmSettingsActivity extends AppCompatActivity {
              Toast.makeText(this, "需要通知权限才能发送班次提醒", Toast.LENGTH_LONG).show();
              PermissionHelper.openAppSettings(this);
          }
-    }
-
-    /**
-     * 保存所有时间选择器的值到 SharedPreferences
-     */
-    private void saveAllTimes() {
-        Log.d(TAG, "尝试保存所有时间到 SharedPreferences");
-        SharedPreferences sp = getSharedPreferences("alarm_settings_prefs", MODE_PRIVATE);
-        SharedPreferences.Editor editor = sp.edit();
-
-        editor.putInt("day_shift_hour", timePickerDayShift.getHour());
-        editor.putInt("day_shift_minute", timePickerDayShift.getMinute());
-        editor.putInt("night_shift_hour", timePickerNightShift.getHour());
-        editor.putInt("night_shift_minute", timePickerNightShift.getMinute());
-        editor.putInt("dnd_start_hour", timePickerDndStart.getHour());
-        editor.putInt("dnd_start_minute", timePickerDndStart.getMinute());
-        editor.putInt("dnd_end_hour", timePickerDndEnd.getHour());
-        editor.putInt("dnd_end_minute", timePickerDndEnd.getMinute());
-        editor.putInt("dnd_night_start_hour", timePickerDndNightStart.getHour());
-        editor.putInt("dnd_night_start_minute", timePickerDndNightStart.getMinute());
-        editor.putInt("dnd_night_end_hour", timePickerDndNightEnd.getHour());
-        editor.putInt("dnd_night_end_minute", timePickerDndNightEnd.getMinute());
-
-        editor.apply();
-        Log.d(TAG, "所有时间已保存");
     }
 } 

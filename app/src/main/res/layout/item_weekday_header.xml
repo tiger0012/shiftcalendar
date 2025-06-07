@@ -4,7 +4,9 @@
     android:layout_height="wrap_content"
     android:orientation="horizontal"
     android:gravity="center"
-    android:padding="2dp">
+    android:background="@drawable/weekday_header_background"
+    android:padding="4dp"
+    android:layout_margin="2dp">
 
     <TextView
         android:layout_width="0dp"
@@ -12,7 +14,7 @@
         android:layout_weight="1"
         android:text=""
         android:gravity="center"
-        android:textSize="12sp"
+        android:textSize="13sp"
         android:textStyle="bold" />
 
     <TextView
@@ -22,7 +24,8 @@
         android:layout_weight="1"
         android:text="周日"
         android:gravity="center"
-        android:textSize="12sp"
+        android:textSize="13sp"
+        android:textColor="@color/weekend_text_color"
         android:textStyle="bold" />
 
     <TextView
@@ -31,7 +34,8 @@
         android:layout_weight="1"
         android:text="周一"
         android:gravity="center"
-        android:textSize="12sp"
+        android:textSize="13sp"
+        android:textColor="@color/weekday_text_color"
         android:textStyle="bold" />
 
     <TextView
@@ -40,7 +44,8 @@
         android:layout_weight="1"
         android:text="周二"
         android:gravity="center"
-        android:textSize="12sp"
+        android:textSize="13sp"
+        android:textColor="@color/weekday_text_color"
         android:textStyle="bold" />
 
     <TextView
@@ -49,7 +54,8 @@
         android:layout_weight="1"
         android:text="周三"
         android:gravity="center"
-        android:textSize="12sp"
+        android:textSize="13sp"
+        android:textColor="@color/weekday_text_color"
         android:textStyle="bold" />
 
     <TextView
@@ -58,7 +64,8 @@
         android:layout_weight="1"
         android:text="周四"
         android:gravity="center"
-        android:textSize="12sp"
+        android:textSize="13sp"
+        android:textColor="@color/weekday_text_color"
         android:textStyle="bold" />
 
     <TextView
@@ -67,7 +74,8 @@
         android:layout_weight="1"
         android:text="周五"
         android:gravity="center"
-        android:textSize="12sp"
+        android:textSize="13sp"
+        android:textColor="@color/weekday_text_color"
         android:textStyle="bold" />
 
     <TextView
@@ -76,6 +84,7 @@
         android:layout_weight="1"
         android:text="周六"
         android:gravity="center"
-        android:textSize="12sp"
+        android:textSize="13sp"
+        android:textColor="@color/weekend_text_color"
         android:textStyle="bold" />
 </LinearLayout>
