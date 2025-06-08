@@ -67,6 +67,19 @@
             android:exported="false" />
 
         <receiver
+            android:name=".ScreenStateReceiver"
+            android:enabled="true"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="android.intent.action.SCREEN_ON" />
+                <action android:name="android.intent.action.SCREEN_OFF" />
+                <action android:name="android.intent.action.USER_PRESENT" />
+                <action android:name="com.example.myapplication.ACTION_SCREEN_STATE_CHANGE" />
+                <action android:name="com.example.myapplication.ACTION_SCREEN_STATE_UNREGISTER" />
+            </intent-filter>
+        </receiver>
+
+        <receiver
             android:name=".BootCompletedReceiver"
             android:enabled="true"
             android:exported="false">

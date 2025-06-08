@@ -27,7 +27,7 @@ public class PermissionHelper {
     }
 
     public static boolean checkAlarmPermission(Context context) {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+        if (Build.VERSION.SDK_INT >= 31) {
             AlarmManager alarmManager = (AlarmManager) context.getSystemService(Context.ALARM_SERVICE);
             if (alarmManager != null && !alarmManager.canScheduleExactAlarms()) {
                 return false;
@@ -45,12 +45,18 @@ public class PermissionHelper {
     }
 
     public static void requestAlarmPermission(AppCompatActivity activity, PermissionCallback callback) {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+        if (Build.VERSION.SDK_INT >= 31) {
             AlarmManager alarmManager = (AlarmManager) activity.getSystemService(Context.ALARM_SERVICE);
             if (alarmManager != null && !alarmManager.canScheduleExactAlarms()) {
                 Toast.makeText(activity, "需要精确闹钟权限才能设置班次提醒", Toast.LENGTH_LONG).show();
-                Intent intent = new Intent(Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM);
-                activity.startActivity(intent);
+                try {
+                    Intent intent = new Intent();
+                    intent.setAction("android.settings.REQUEST_SCHEDULE_EXACT_ALARM");
+                    activity.startActivity(intent);
+                } catch (Exception e) {
+                    Log.e(TAG, "无法打开精确闹钟权限设置", e);
+                    openAppSettings(activity);
+                }
                 callback.onPermissionDenied();
                 return;
             }

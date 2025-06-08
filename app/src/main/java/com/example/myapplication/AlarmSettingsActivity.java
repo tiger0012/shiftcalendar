@@ -41,6 +41,9 @@ public class AlarmSettingsActivity extends AppCompatActivity {
     private Button btnSetCustomAlarm;
     private Button btnSetDnd;
     private Button btnSetNapDnd;
+    private TextView tvDndDescription;
+    private TextView tvAlarmDescription;
+    private TextView tvNapDescription;
 
     private String currentSelectedTeam;
     private List<DayShiftGroup> shiftDataInRange;
@@ -88,6 +91,34 @@ public class AlarmSettingsActivity extends AppCompatActivity {
         btnSetCustomAlarm = findViewById(R.id.btn_set_custom_alarm);
         btnSetDnd = findViewById(R.id.btn_set_dnd);
         btnSetNapDnd = findViewById(R.id.btn_set_nap_dnd);
+        tvDndDescription = findViewById(R.id.tv_dnd_description);
+        tvAlarmDescription = findViewById(R.id.tv_alarm_description);
+        tvNapDescription = findViewById(R.id.tv_nap_description);
+        
+        // 设置勿扰模式说明文字
+        String dndDescriptionText = "• 勿扰模式将设置为完全勿扰，在指定时段内禁止所有通知声音\n"
+                              + "• 允许重复来电响铃(同一号码15分钟内多次呼叫)\n"
+                              + "• 闹钟声音不受影响\n"
+                              + "• 手机解锁时自动允许声音提醒";
+        if (tvDndDescription != null) {
+            tvDndDescription.setText(dndDescriptionText);
+        }
+        
+        // 设置闹钟说明文字
+        String alarmDescriptionText = "• 根据班组自动设置闹钟，工作日提醒，休息日不提醒\n"
+                                + "• 白班和夜班使用不同的闹钟时间\n"
+                                + "• 点击时间可以自定义闹钟时间";
+        if (tvAlarmDescription != null) {
+            tvAlarmDescription.setText(alarmDescriptionText);
+        }
+        
+        // 设置午睡勿扰说明文字
+        String napDescriptionText = "• 设置临时勿扰状态和闹钟\n"
+                              + "• 勿扰将在设定时长后自动关闭\n"
+                              + "• 适合午休或短暂休息使用";
+        if (tvNapDescription != null) {
+            tvNapDescription.setText(napDescriptionText);
+        }
 
         // 从 SharedPreferences 加载保存的时间
         loadSavedTimes();
@@ -131,6 +162,8 @@ public class AlarmSettingsActivity extends AppCompatActivity {
         dndNightStartMinute = sp.getInt("dnd_night_start_minute", 0);
         dndNightEndHour = sp.getInt("dnd_night_end_hour", 18);
         dndNightEndMinute = sp.getInt("dnd_night_end_minute", 0);
+        
+        // 不再需要读取开关状态，默认勿扰模式为完全勿扰并允许重复来电
     }
 
     private void updateTimeDisplay() {
@@ -306,6 +339,16 @@ public class AlarmSettingsActivity extends AppCompatActivity {
         // 保存所有时间选择器的时间
         saveAllTimes();
 
+        // 设置默认值：完全勿扰模式且允许重复来电
+        int dndModeType = 1; // 1=完全勿扰
+        boolean allowRepeatedCalls = true; // 允许重复来电
+        
+        SharedPreferences sp = getSharedPreferences("alarm_settings_prefs", MODE_PRIVATE);
+        sp.edit()
+          .putInt("dnd_mode_type", dndModeType)
+          .putBoolean("allow_repeated_calls", allowRepeatedCalls)
+          .apply();
+
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
             NotificationManager notificationManager = (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
             if (!notificationManager.isNotificationPolicyAccessGranted()) {
@@ -375,8 +418,7 @@ public class AlarmSettingsActivity extends AppCompatActivity {
             }
 
             // 保存选择的勿扰时间范围以及设置时的班次类型
-            SharedPreferences sp = getSharedPreferences("alarm_settings_prefs", MODE_PRIVATE);
-             sp.edit()
+            sp.edit()
                 .putInt("current_dnd_start_hour", dndStartHour)
                 .putInt("current_dnd_start_minute", dndStartMinute)
                 .putInt("current_dnd_end_hour", dndEndHour)
@@ -396,13 +438,13 @@ public class AlarmSettingsActivity extends AppCompatActivity {
                 } else {
                     shiftTypeString = "无班次";
                 }
-
-                String toastMessage = String.format("已设置%s勿扰模式\n时间范围：%02d:%02d - %02d:%02d", 
+                
+                String toastMessage = String.format("已设置%s完全勿扰模式\n时间范围：%02d:%02d - %02d:%02d\n已允许重复来电和闹钟", 
                     shiftTypeString, dndStartHour, dndStartMinute, dndEndHour, dndEndMinute);
 
                 String notificationTitle = String.format("%s勿扰区间已设置", shiftTypeString);
 
-                String notificationText = String.format("勿扰时间: %02d:%02d - %02d:%02d", 
+                String notificationText = String.format("勿扰时间: %02d:%02d - %02d:%02d，允许重复来电和闹钟", 
                     dndStartHour, dndStartMinute, dndEndHour, dndEndMinute);
 
                 Toast.makeText(this, toastMessage, Toast.LENGTH_LONG).show();
@@ -450,19 +492,54 @@ public class AlarmSettingsActivity extends AppCompatActivity {
                 if (notificationManagerInstant != null) {
                     if (shouldBeInDndNow) {
                          if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
-                             NotificationManager.Policy policy = new NotificationManager.Policy(
-                                 NotificationManager.Policy.PRIORITY_CATEGORY_ALARMS |
-                                 NotificationManager.Policy.PRIORITY_CATEGORY_REMINDERS |
-                                 NotificationManager.Policy.PRIORITY_CATEGORY_CALLS |
-                                 NotificationManager.Policy.PRIORITY_CATEGORY_MESSAGES,
-                                 NotificationManager.Policy.PRIORITY_SENDERS_ANY,
-                                 0
-                             );
-                             notificationManagerInstant.setNotificationPolicy(policy);
-                             Log.d(TAG, "立即设置勿扰模式：已设置优先通知规则");
+                             NotificationManager.Policy policy;
+                             if (dndModeType == 1) {
+                                 // 完全勿扰模式 - 只允许闹钟
+                                 policy = new NotificationManager.Policy(
+                                     NotificationManager.Policy.PRIORITY_CATEGORY_ALARMS,
+                                     0,
+                                     0
+                                 );
+                                 Log.d(TAG, "立即设置完全勿扰模式");
+                             } else {
+                                 // 优先勿扰模式
+                                 policy = new NotificationManager.Policy(
+                                     NotificationManager.Policy.PRIORITY_CATEGORY_ALARMS |
+                                     NotificationManager.Policy.PRIORITY_CATEGORY_REMINDERS |
+                                     NotificationManager.Policy.PRIORITY_CATEGORY_CALLS |
+                                     NotificationManager.Policy.PRIORITY_CATEGORY_MESSAGES,
+                                     NotificationManager.Policy.PRIORITY_SENDERS_ANY,
+                                     0
+                                 );
+                                 Log.d(TAG, "立即设置优先通知勿扰模式");
+                             }
+                             
+                             try {
+                                 // 华为手机兼容处理
+                                 notificationManagerInstant.setNotificationPolicy(policy);
+                                 
+                                 // 为防止某些设备直接设置导致崩溃，使用延迟设置过滤器的方式
+                                 new Thread(() -> {
+                                     try {
+                                         Thread.sleep(100); // 延迟100毫秒再设置过滤器
+                                         runOnUiThread(() -> {
+                                             try {
+                                                 notificationManagerInstant.setInterruptionFilter(NotificationManager.INTERRUPTION_FILTER_PRIORITY);
+                                                 Log.d(TAG, "已设置勿扰过滤器模式");
+                                             } catch (Exception e) {
+                                                 Log.e(TAG, "设置勿扰过滤器失败", e);
+                                             }
+                                         });
+                                     } catch (InterruptedException e) {
+                                         Log.e(TAG, "延迟设置勿扰被中断", e);
+                                     }
+                                 }).start();
+                                 
+                                 Log.d(TAG, "立即应用勿扰模式策略");
+                             } catch (Exception e) {
+                                 Log.e(TAG, "设置勿扰模式失败", e);
+                             }
                          }
-                        notificationManagerInstant.setInterruptionFilter(NotificationManager.INTERRUPTION_FILTER_PRIORITY);
-                        Log.d(TAG, "立即设置勿扰模式：已启用（优先）");
                         Toast.makeText(this, "勿扰模式已立即开启", Toast.LENGTH_SHORT).show();
                     } else {
                         notificationManagerInstant.setInterruptionFilter(NotificationManager.INTERRUPTION_FILTER_ALL);

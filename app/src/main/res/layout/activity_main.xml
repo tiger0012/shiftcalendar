@@ -130,7 +130,7 @@
             android:id="@+id/team_days_container"
             android:layout_width="0dp"
             android:layout_height="wrap_content"
-            android:layout_weight="1"
+            android:layout_weight="1.2"
             android:orientation="vertical"
             android:paddingRight="8dp">
 
@@ -138,73 +138,95 @@
                 android:id="@+id/tv_team_days_title"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:text="Total Work Days"
+                android:text="班组信息"
                 android:textSize="18sp"
                 android:textStyle="bold"
                 android:textColor="#1565C0"
                 android:layout_marginBottom="8dp"/>
 
+            <!-- 修改班组选择区域，添加说明文字 -->
             <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:orientation="horizontal"
-                android:gravity="center_vertical"
-                android:layout_marginBottom="8dp"
-                android:background="#F5F5F5"
-                android:padding="8dp"
-                android:elevation="2dp">
+                android:orientation="vertical">
 
-                <Spinner
-                    android:id="@+id/spinner_team_selector"
-                    android:layout_width="0dp"
-                    android:layout_weight="1"
+                <LinearLayout
+                    android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:background="@android:color/transparent"/>
+                    android:orientation="horizontal"
+                    android:gravity="center_vertical"
+                    android:layout_marginBottom="4dp">
 
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="班组选择:"
+                        android:textSize="14sp"
+                        android:textStyle="bold"
+                        android:layout_marginRight="8dp"/>
+
+                    <Spinner
+                        android:id="@+id/spinner_team_selector"
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"/>
+                </LinearLayout>
+
+                <!-- 添加班组信息说明区域 -->
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal"
+                    android:gravity="center_vertical"
+                    android:layout_marginBottom="8dp">
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="本月工作天数:"
+                        android:textSize="14sp"
+                        android:layout_marginRight="8dp"/>
+
+                    <androidx.recyclerview.widget.RecyclerView
+                        android:id="@+id/rv_team_days"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"/>
+                </LinearLayout>
+
+                <!-- 今日班次状态 -->
                 <TextView
-                    android:layout_width="wrap_content"
+                    android:id="@+id/tv_settings_hint"
+                    android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:text="组"
+                    android:text="今日无班"
                     android:textSize="16sp"
                     android:textStyle="bold"
-                    android:textColor="@color/black"
-                    android:layout_marginStart="4dp"/>
-            </LinearLayout>
-
-            <LinearLayout
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:orientation="horizontal"
-                android:gravity="center_vertical"
-                android:background="#F5F5F5"
-                android:padding="8dp"
-                android:elevation="2dp">
-
-                <androidx.recyclerview.widget.RecyclerView
-                    android:id="@+id/rv_team_days"
-                    android:layout_width="0dp"
-                    android:layout_weight="1"
-                    android:layout_height="wrap_content" />
-
-                <TextView
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:text="天"
-                    android:textSize="16sp"
-                    android:textStyle="bold"
-                    android:textColor="@color/black"
-                    android:layout_marginStart="4dp"/>
+                    android:textColor="#FFFFFF"
+                    android:background="#888888"
+                    android:padding="8dp"
+                    android:gravity="center"
+                    android:layout_marginBottom="8dp"/>
             </LinearLayout>
         </LinearLayout>
 
-        <!-- 闹钟设置区域 (右侧) -->
+        <!-- 功能按钮区域 (右侧) -->
         <LinearLayout
-            android:id="@+id/alarm_settings_container"
+            android:id="@+id/function_buttons_container"
             android:layout_width="0dp"
             android:layout_height="wrap_content"
-            android:layout_weight="1"
+            android:layout_weight="0.8"
             android:orientation="vertical"
             android:paddingLeft="8dp">
+
+            <!-- 今天按钮说明 -->
+            <TextView
+                android:id="@+id/tv_today_description"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="• 点击返回今天日期"
+                android:textSize="12sp"
+                android:textColor="#666666"
+                android:layout_marginBottom="4dp"/>
 
             <Button
                 android:id="@+id/btn_today"
@@ -215,16 +237,26 @@
                 android:textStyle="bold"
                 android:backgroundTint="@color/design_default_color_primary"
                 android:textColor="@android:color/white"
-                android:layout_marginBottom="8dp"
-                android:elevation="4dp"/>
+                android:layout_marginBottom="8dp"/>
+
+            <!-- 设置按钮说明 -->
+            <TextView
+                android:id="@+id/tv_settings_description"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="• 点击设置闹钟和勿扰模式"
+                android:textSize="12sp"
+                android:textColor="#666666"
+                android:layout_marginBottom="4dp"/>
 
             <Button
                 android:id="@+id/btn_go_to_alarm_settings"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:text="设置闹钟与勿扰"
+                android:text="设置闹钟和勿扰"
+                android:textSize="16sp"
                 android:backgroundTint="@color/design_default_color_secondary"
-                android:elevation="4dp"/>
+                android:layout_marginBottom="4dp"/>
 
         </LinearLayout>
 

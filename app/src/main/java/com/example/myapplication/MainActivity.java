@@ -69,6 +69,10 @@ public class MainActivity extends AppCompatActivity {
     private Button btnPreviousMonth;
     private Button btnNextMonth;
     private WeeknumColumnAdapter weeknumColumnAdapter;
+    private TextView tvSettingsHint; // 添加对设置提示文本的引用
+    private Button btnToday;
+    private TextView tvTodayDescription; // 添加今天按钮说明引用
+    private TextView tvSettingsDescription; // 添加设置按钮说明引用
 
     private int currentYear;
     private int currentMonth;
@@ -83,7 +87,6 @@ public class MainActivity extends AppCompatActivity {
     private GestureDetector gestureDetector;
     private static final int SWIPE_THRESHOLD = 50;
     private static final int SWIPE_VELOCITY_THRESHOLD = 50;
-    private Button btnToday;
 
     // 新增类级别方法获取上月最后周数
     private String getPreviousMonthLastWeeknum(int year, int month) {
@@ -150,11 +153,18 @@ public class MainActivity extends AppCompatActivity {
         checkAndRequestPermissions();
 
         // 请求闹钟权限
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+        if (Build.VERSION.SDK_INT >= 31) { // Android 12 (API 31)
             AlarmManager alarmManager = (AlarmManager) getSystemService(Context.ALARM_SERVICE);
             if (alarmManager != null && !alarmManager.canScheduleExactAlarms()) {
-                Intent intent = new Intent(android.provider.Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM);
-                startActivity(intent);
+                try {
+                    // 华为部分设备可能没有此设置页面，使用try-catch避免崩溃
+                    Intent intent = new Intent();
+                    intent.setAction("android.settings.REQUEST_SCHEDULE_EXACT_ALARM");
+                    startActivity(intent);
+                } catch (Exception e) {
+                    Log.e(TAG, "无法打开精确闹钟权限设置", e);
+                    // 可以选择默默忽略，因为低版本设备不需要此权限
+                }
             }
         }
 
@@ -198,6 +208,12 @@ public class MainActivity extends AppCompatActivity {
 
         // 获取跳转到闹钟设置页面的按钮引用
         btnGoToAlarmSettings = findViewById(R.id.btn_go_to_alarm_settings);
+        tvSettingsHint = findViewById(R.id.tv_settings_hint);
+        tvTodayDescription = findViewById(R.id.tv_today_description);
+        tvSettingsDescription = findViewById(R.id.tv_settings_description);
+
+        // 设置今日日期和班次信息
+        updateTodayInfo();
 
         // 为跳转按钮设置点击事件监听器
         btnGoToAlarmSettings.setOnClickListener(v -> {
@@ -359,10 +375,8 @@ public class MainActivity extends AppCompatActivity {
                     spinnerTeamSelector.setBackgroundColor(ContextCompat.getColor(MainActivity.this, colorResId));
                 }
                 updateTeamDaysDisplay();
+                updateTodayInfo(); // 更新今日信息
                 
-                // 检查当前班组是否在今天上班
-                // checkAndSetAlarm(); // 此处不再设置普通闹钟，移除或修改
-
                 // 切换班组时，重新设置勿扰定时任务
                 setDndAlarms(MainActivity.this);
             }
@@ -823,11 +837,36 @@ public class MainActivity extends AppCompatActivity {
         boolean dndSettingsConfigured = appPrefs.getBoolean("dnd_settings_configured", false); // 默认未设置
         Log.d(TAG, "dnd_settings_configured 读取值为: " + dndSettingsConfigured);
 
+        // 尝试读取AlarmSettings中保存的设置作为备份检查
+        SharedPreferences alarmSettingsPrefs = context.getSharedPreferences("alarm_settings_prefs", Context.MODE_PRIVATE);
+        boolean hasSetDndTimes = alarmSettingsPrefs.contains("current_dnd_start_hour") && 
+                                alarmSettingsPrefs.contains("current_dnd_end_hour");
+                                
+        // 如果app_prefs中没有设置标记但AlarmSettings有时间设置，则也认为已配置
+        if (!dndSettingsConfigured && hasSetDndTimes) {
+            Log.d(TAG, "虽然dnd_settings_configured为false，但找到了勿扰时间设置，将继续设置定时任务");
+            // 补充设置标记
+            appPrefs.edit().putBoolean("dnd_settings_configured", true).apply();
+            dndSettingsConfigured = true;
+        }
+
         if (!dndSettingsConfigured) {
             Log.d(TAG, "用户尚未设置勿扰模式，跳过设置定时任务。");
             return;
         }
 
+        // 检查系统勿扰权限
+        NotificationManager notificationManager = (NotificationManager) context.getSystemService(Context.NOTIFICATION_SERVICE);
+        if (notificationManager == null) {
+            Log.e(TAG, "NotificationManager 为空");
+            return;
+        }
+        
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && !notificationManager.isNotificationPolicyAccessGranted()) {
+            Log.e(TAG, "没有勿扰模式控制权限");
+            return;
+        }
+        
         AlarmManager alarmManager = (AlarmManager) context.getSystemService(Context.ALARM_SERVICE);
         if (alarmManager == null) {
             Log.e(TAG, "AlarmManager 为空");
@@ -854,11 +893,9 @@ public class MainActivity extends AppCompatActivity {
 
         // Let's first implement a compromise: read the last set shift type and all DND time intervals from alarm_settings_prefs
         // and decide which interval to use based on the current selected team and today's shift type
-
-        SharedPreferences alarmSettingsPrefs = context.getSharedPreferences("alarm_settings_prefs", Context.MODE_PRIVATE);
         
         // TODO: Here, need to determine whether to use day or night DND interval based on the current selected team and today's shift type
-        // Temporarily using day interval, needs subsequent modification
+        // 读取已保存的勿扰时间设置
         int startHour = alarmSettingsPrefs.getInt("current_dnd_start_hour", 22);
         int startMinute = alarmSettingsPrefs.getInt("current_dnd_start_minute", 0);
         int endHour = alarmSettingsPrefs.getInt("current_dnd_end_hour", 6);
@@ -866,6 +903,43 @@ public class MainActivity extends AppCompatActivity {
 
         Log.d(TAG, "读取的当前生效勿扰区间: " + startHour + ":" + startMinute + " - " + endHour + ":" + endMinute);
 
+        // 从设置中读取是否允许重复来电和勿扰模式类型
+        boolean allowRepeatedCalls = alarmSettingsPrefs.getBoolean("allow_repeated_calls", true);
+        int dndModeType = alarmSettingsPrefs.getInt("dnd_mode_type", 0); // 0=优先，1=完全勿扰
+        
+        Log.d(TAG, "读取的勿扰模式类型: " + (dndModeType == 1 ? "完全勿扰" : "优先勿扰") + 
+              ", 允许重复来电: " + allowRepeatedCalls);
+              
+        // 检查当前勿扰状态，如果勿扰模式已开启，确保设置正确
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            int currentInterruptionFilter = notificationManager.getCurrentInterruptionFilter();
+            if (currentInterruptionFilter == NotificationManager.INTERRUPTION_FILTER_PRIORITY) {
+                // 勿扰模式已开启，确保设置是正确的
+                NotificationManager.Policy currentPolicy = notificationManager.getNotificationPolicy();
+                boolean needUpdate = false;
+                
+                if (dndModeType == 1) {
+                    // 完全勿扰模式
+                    int expectedCategories = NotificationManager.Policy.PRIORITY_CATEGORY_ALARMS;
+                    if (allowRepeatedCalls) {
+                        expectedCategories |= NotificationManager.Policy.PRIORITY_CATEGORY_REPEAT_CALLERS;
+                    }
+                    
+                    if (currentPolicy.priorityCategories != expectedCategories) {
+                        needUpdate = true;
+                    }
+                }
+                
+                if (needUpdate) {
+                    // 重新应用正确的勿扰设置
+                    Intent updateIntent = new Intent(context, DndAlarmReceiver.class);
+                    updateIntent.putExtra("ENABLE_DND", true);
+                    context.sendBroadcast(updateIntent);
+                    Log.d(TAG, "发送更新勿扰设置的广播");
+                }
+            }
+        }
+        
         // Calculate next DND start time
         Calendar nextOnTime = Calendar.getInstance();
         nextOnTime.set(Calendar.HOUR_OF_DAY, startHour);
@@ -918,7 +992,15 @@ public class MainActivity extends AppCompatActivity {
         if (nextAlarmPendingIntent != null) {
             try {
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-                    if (alarmManager.canScheduleExactAlarms()) {
+                    // 修改这里，根据API版本检查能否使用精确闹钟
+                    boolean canScheduleExact = true; // 默认假设可以
+                    
+                    // 仅在Android 12 (API 31)及以上版本检查精确闹钟权限
+                    if (Build.VERSION.SDK_INT >= 31) { // Build.VERSION_CODES.S
+                        canScheduleExact = alarmManager.canScheduleExactAlarms();
+                    }
+                    
+                    if (canScheduleExact) {
                         // 使用 setAlarmClock，它在某些设备上可能有更高优先级
                         AlarmManager.AlarmClockInfo alarmClockInfo = new AlarmManager.AlarmClockInfo(nextAlarmTimeMillis, null);
                         alarmManager.setAlarmClock(alarmClockInfo, nextAlarmPendingIntent);
@@ -968,5 +1050,33 @@ public class MainActivity extends AppCompatActivity {
         PendingIntent dndOffPendingIntent = PendingIntent.getBroadcast(context, 1002, dndOffIntent, PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
         alarmManager.cancel(dndOffPendingIntent);
         Log.d(TAG, "已取消勿扰关闭定时任务");
+    }
+
+    // 添加更新今日信息的方法
+    private void updateTodayInfo() {
+        if (tvSettingsHint == null) return;
+        
+        LocalDate today = LocalDate.now();
+        DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd");
+        String todayStr = today.format(formatter);
+        
+        String currentShiftStatus = "今日无班";
+        int bgColor = ContextCompat.getColor(this, R.color.gray); // 默认灰色背景
+        
+        if (currentSelectedTeam != null && !currentSelectedTeam.isEmpty() && allData != null) {
+            DayShiftGroup todayShift = allData.get(todayStr);
+            if (todayShift != null) {
+                if (todayShift.dayTeams.contains(currentSelectedTeam)) {
+                    currentShiftStatus = "今日白班";
+                    bgColor = ContextCompat.getColor(this, R.color.day_shift); // 白班用蓝色
+                } else if (todayShift.nightTeams.contains(currentSelectedTeam)) {
+                    currentShiftStatus = "今日夜班";
+                    bgColor = ContextCompat.getColor(this, R.color.night_shift); // 夜班用绿色
+                }
+            }
+        }
+        
+        tvSettingsHint.setText(currentShiftStatus);
+        tvSettingsHint.setBackgroundColor(bgColor);
     }
 }
