@@ -1,7 +1,7 @@
 android {
     defaultConfig {
-        versionCode = 22
-        versionName = "2.2"
+        versionCode = 23
+        versionName = "V2025.6.10"
     }
 }
 plugins {
@@ -16,8 +16,8 @@ android {
         applicationId = "com.example.myapplication"
         minSdk = 26
         targetSdk = 35
-        versionCode = 3
-        versionName = "V2025.6.9"
+        versionCode = 23
+        versionName = "V2025.6.10"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
