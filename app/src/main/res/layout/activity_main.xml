@@ -157,12 +157,12 @@
                     android:gravity="center_vertical"
                     android:layout_marginBottom="4dp">
 
-                    <TextView
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
                         android:text="班组选择:"
                         android:textSize="14sp"
-                        android:textStyle="bold"
+                    android:textStyle="bold"
                         android:layout_marginRight="8dp"/>
 
                     <Spinner
@@ -170,14 +170,14 @@
                         android:layout_width="0dp"
                         android:layout_height="wrap_content"
                         android:layout_weight="1"/>
-                </LinearLayout>
+            </LinearLayout>
 
                 <!-- 添加班组信息说明区域 -->
-                <LinearLayout
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:orientation="horizontal"
-                    android:gravity="center_vertical"
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:gravity="center_vertical"
                     android:layout_marginBottom="8dp">
 
                     <TextView
@@ -187,8 +187,8 @@
                         android:textSize="14sp"
                         android:layout_marginRight="8dp"/>
 
-                    <androidx.recyclerview.widget.RecyclerView
-                        android:id="@+id/rv_team_days"
+                <androidx.recyclerview.widget.RecyclerView
+                    android:id="@+id/rv_team_days"
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"/>
                 </LinearLayout>

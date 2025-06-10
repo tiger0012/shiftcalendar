@@ -88,7 +88,15 @@
             </intent-filter>
         </receiver>
 
-        <receiver android:name=".NapAlarmReceiver" />
+        <receiver 
+            android:name=".NapAlarmReceiver"
+            android:enabled="true"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="com.example.myapplication.NAP_ALARM_START" />
+                <action android:name="com.example.myapplication.NAP_ALARM_END" />
+            </intent-filter>
+        </receiver>
 
         <service
             android:name=".AlarmService"

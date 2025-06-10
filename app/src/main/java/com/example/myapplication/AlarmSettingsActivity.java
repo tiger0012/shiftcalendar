@@ -578,66 +578,98 @@ public class AlarmSettingsActivity extends AppCompatActivity {
                     return;
                 }
 
-                // 设置系统勿扰模式
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
-                    NotificationManager.Policy policy = new NotificationManager.Policy(
-                        NotificationManager.Policy.PRIORITY_CATEGORY_ALARMS |
-                        NotificationManager.Policy.PRIORITY_CATEGORY_REMINDERS |
-                        NotificationManager.Policy.PRIORITY_CATEGORY_CALLS |
-                        NotificationManager.Policy.PRIORITY_CATEGORY_MESSAGES,
-                        NotificationManager.Policy.PRIORITY_SENDERS_ANY,
-                        0
-                    );
-                    notificationManager.setNotificationPolicy(policy);
-                }
-                notificationManager.setInterruptionFilter(NotificationManager.INTERRUPTION_FILTER_PRIORITY);
-
-                // 设置系统闹钟
-                Intent intent = new Intent(AlarmClock.ACTION_SET_ALARM);
-                Calendar calendar = Calendar.getInstance();
-                calendar.add(Calendar.HOUR_OF_DAY, napHour);
-                calendar.add(Calendar.MINUTE, napMinute);
+                // 计算结束时间
+                Calendar endTime = Calendar.getInstance();
+                endTime.add(Calendar.HOUR_OF_DAY, napHour);
+                endTime.add(Calendar.MINUTE, napMinute);
+                Log.d(TAG, "午睡将在 " + endTime.getTime() + " 结束，持续时间: " + napHour + "小时" + napMinute + "分钟");
                 
-                intent.putExtra(AlarmClock.EXTRA_HOUR, calendar.get(Calendar.HOUR_OF_DAY));
-                intent.putExtra(AlarmClock.EXTRA_MINUTES, calendar.get(Calendar.MINUTE));
-                intent.putExtra(AlarmClock.EXTRA_MESSAGE, "午睡结束提醒");
-                intent.putExtra(AlarmClock.EXTRA_SKIP_UI, false);
-                intent.putExtra(AlarmClock.EXTRA_VIBRATE, true);
-                intent.putExtra(AlarmClock.EXTRA_RINGTONE, "content://settings/system/alarm_alert");
-
-                // 启动系统闹钟应用
-                if (intent.resolveActivity(getPackageManager()) != null) {
-                    startActivity(intent);
-                } else {
-                    Toast.makeText(this, "未找到可用的闹钟应用，请手动设置闹钟。", Toast.LENGTH_LONG).show();
-                    Log.e(TAG, "未找到可处理 AlarmClock.ACTION_SET_ALARM 的应用");
-                }
-
-                // 创建广播接收器的PendingIntent
-                Intent napIntent = new Intent(this, NapAlarmReceiver.class);
-                PendingIntent napPendingIntent = PendingIntent.getBroadcast(
+                // 保存结束时间到SharedPreferences，以便可能的恢复使用
+                SharedPreferences sp = getSharedPreferences("nap_settings", MODE_PRIVATE);
+                sp.edit()
+                    .putLong("nap_end_time", endTime.getTimeInMillis())
+                    .putInt("nap_hours", napHour)
+                    .putInt("nap_minutes", napMinute)
+                    .apply();
+                
+                // 创建结束勿扰的广播接收器
+                Intent endNapIntent = new Intent(this, NapAlarmReceiver.class);
+                endNapIntent.setAction(NapAlarmReceiver.ACTION_NAP_ALARM_END);
+                PendingIntent endNapPendingIntent = PendingIntent.getBroadcast(
                     this,
-                    0,
-                    napIntent,
+                    1002,
+                    endNapIntent,
                     PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE
                 );
 
-                // 设置闹钟
+                // 设置结束午睡的闹钟
                 AlarmManager alarmManager = (AlarmManager) getSystemService(Context.ALARM_SERVICE);
                 if (alarmManager != null) {
+                    // 取消之前可能存在的闹钟
+                    try {
+                        alarmManager.cancel(endNapPendingIntent);
+                        Log.d(TAG, "已取消之前的午睡结束闹钟");
+                    } catch (Exception e) {
+                        Log.e(TAG, "取消之前闹钟出错", e);
+                    }
+                    
                     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-                        alarmManager.setExactAndAllowWhileIdle(
-                            AlarmManager.RTC_WAKEUP,
-                            calendar.getTimeInMillis(),
-                            napPendingIntent
-                        );
+                        try {
+                            alarmManager.setExactAndAllowWhileIdle(
+                                AlarmManager.RTC_WAKEUP,
+                                endTime.getTimeInMillis(),
+                                endNapPendingIntent
+                            );
+                            Log.d(TAG, "已设置午睡结束精确闹钟，允许唤醒设备");
+                        } catch (Exception e) {
+                            Log.e(TAG, "设置精确闹钟失败，尝试使用普通闹钟", e);
+                            alarmManager.setExact(
+                                AlarmManager.RTC_WAKEUP,
+                                endTime.getTimeInMillis(),
+                                endNapPendingIntent
+                            );
+                            Log.d(TAG, "已使用普通精确闹钟");
+                        }
                     } else {
                         alarmManager.setExact(
                             AlarmManager.RTC_WAKEUP,
-                            calendar.getTimeInMillis(),
-                            napPendingIntent
+                            endTime.getTimeInMillis(),
+                            endNapPendingIntent
                         );
+                        Log.d(TAG, "已设置普通精确闹钟");
                     }
+                }
+
+                // 创建并立即触发开始勿扰的广播接收器
+                Intent startNapIntent = new Intent(this, NapAlarmReceiver.class);
+                startNapIntent.setAction(NapAlarmReceiver.ACTION_NAP_ALARM_START);
+                PendingIntent startNapPendingIntent = PendingIntent.getBroadcast(
+                    this,
+                    1001,
+                    startNapIntent,
+                    PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE
+                );
+
+                // 立即执行开始广播
+                try {
+                    startNapPendingIntent.send();
+                    Log.d(TAG, "已发送开始午睡勿扰广播");
+                } catch (PendingIntent.CanceledException e) {
+                    Log.e(TAG, "发送开始午睡勿扰广播失败", e);
+                }
+
+                // 可选：设置系统闹钟（用于用户手动取消午睡）
+                Intent alarmIntent = new Intent(AlarmClock.ACTION_SET_ALARM);
+                alarmIntent.putExtra(AlarmClock.EXTRA_HOUR, endTime.get(Calendar.HOUR_OF_DAY));
+                alarmIntent.putExtra(AlarmClock.EXTRA_MINUTES, endTime.get(Calendar.MINUTE));
+                alarmIntent.putExtra(AlarmClock.EXTRA_MESSAGE, "午睡结束提醒");
+                alarmIntent.putExtra(AlarmClock.EXTRA_SKIP_UI, true);  // 不显示闹钟设置界面
+                
+                if (alarmIntent.resolveActivity(getPackageManager()) != null) {
+                    startActivity(alarmIntent);
+                    Log.d(TAG, "已设置系统闹钟提醒");
+                } else {
+                    Log.d(TAG, "无法设置系统闹钟，未找到相应应用");
                 }
 
                 // 显示通知和Toast

@@ -33,17 +33,17 @@ public class DndAlarmReceiver extends BroadcastReceiver {
             if (enable) {
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
                     if (dndMode == 0) {
-                        // 允许闹钟、提醒、来电、短信等优先通知
-                        NotificationManager.Policy policy = new NotificationManager.Policy(
-                            NotificationManager.Policy.PRIORITY_CATEGORY_ALARMS |
-                            NotificationManager.Policy.PRIORITY_CATEGORY_REMINDERS |
-                            NotificationManager.Policy.PRIORITY_CATEGORY_CALLS |
-                            NotificationManager.Policy.PRIORITY_CATEGORY_MESSAGES,
-                            NotificationManager.Policy.PRIORITY_SENDERS_ANY,
-                            0
-                        );
-                        notificationManager.setNotificationPolicy(policy);
-                        Log.d(TAG, "已设置优先通知规则");
+                    // 允许闹钟、提醒、来电、短信等优先通知
+                    NotificationManager.Policy policy = new NotificationManager.Policy(
+                        NotificationManager.Policy.PRIORITY_CATEGORY_ALARMS |
+                        NotificationManager.Policy.PRIORITY_CATEGORY_REMINDERS |
+                        NotificationManager.Policy.PRIORITY_CATEGORY_CALLS |
+                        NotificationManager.Policy.PRIORITY_CATEGORY_MESSAGES,
+                        NotificationManager.Policy.PRIORITY_SENDERS_ANY,
+                        0
+                    );
+                    notificationManager.setNotificationPolicy(policy);
+                    Log.d(TAG, "已设置优先通知规则");
                         
                         // 设置勿扰模式为优先通知
                         try {
@@ -124,9 +124,9 @@ public class DndAlarmReceiver extends BroadcastReceiver {
                         registerScreenStateReceiver(context);
                     }
                 } else {
-                    // 设置勿扰模式为优先通知
-                    notificationManager.setInterruptionFilter(NotificationManager.INTERRUPTION_FILTER_PRIORITY);
-                    Log.d(TAG, "勿扰模式已启用（优先）");
+                // 设置勿扰模式为优先通知
+                notificationManager.setInterruptionFilter(NotificationManager.INTERRUPTION_FILTER_PRIORITY);
+                Log.d(TAG, "勿扰模式已启用（优先）");
                 }
 
                 // 勿扰模式开启时的通知和Toast
@@ -142,8 +142,8 @@ public class DndAlarmReceiver extends BroadcastReceiver {
             } else {
                 // 关闭勿扰模式
                 try {
-                    notificationManager.setInterruptionFilter(NotificationManager.INTERRUPTION_FILTER_ALL);
-                    Log.d(TAG, "勿扰模式已关闭");
+                notificationManager.setInterruptionFilter(NotificationManager.INTERRUPTION_FILTER_ALL);
+                Log.d(TAG, "勿扰模式已关闭");
                 } catch (Exception e) {
                     Log.e(TAG, "关闭勿扰模式失败", e);
                     if (isHuaweiDevice()) {

@@ -109,6 +109,9 @@ public class MainActivity extends AppCompatActivity {
         EdgeToEdge.enable(this);
         setContentView(R.layout.activity_main);
 
+        // 检查并恢复未完成的午睡
+        checkAndRestoreNap();
+
         // 检查并引导用户授权勿扰模式权限
         NotificationManager notificationManager = (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && notificationManager != null && !notificationManager.isNotificationPolicyAccessGranted()) {
@@ -160,7 +163,7 @@ public class MainActivity extends AppCompatActivity {
                     // 华为部分设备可能没有此设置页面，使用try-catch避免崩溃
                     Intent intent = new Intent();
                     intent.setAction("android.settings.REQUEST_SCHEDULE_EXACT_ALARM");
-                    startActivity(intent);
+                startActivity(intent);
                 } catch (Exception e) {
                     Log.e(TAG, "无法打开精确闹钟权限设置", e);
                     // 可以选择默默忽略，因为低版本设备不需要此权限
@@ -376,7 +379,7 @@ public class MainActivity extends AppCompatActivity {
                 }
                 updateTeamDaysDisplay();
                 updateTodayInfo(); // 更新今日信息
-                
+
                 // 切换班组时，重新设置勿扰定时任务
                 setDndAlarms(MainActivity.this);
             }
@@ -866,7 +869,7 @@ public class MainActivity extends AppCompatActivity {
             Log.e(TAG, "没有勿扰模式控制权限");
             return;
         }
-        
+
         AlarmManager alarmManager = (AlarmManager) context.getSystemService(Context.ALARM_SERVICE);
         if (alarmManager == null) {
             Log.e(TAG, "AlarmManager 为空");
@@ -939,7 +942,7 @@ public class MainActivity extends AppCompatActivity {
                 }
             }
         }
-        
+
         // Calculate next DND start time
         Calendar nextOnTime = Calendar.getInstance();
         nextOnTime.set(Calendar.HOUR_OF_DAY, startHour);
@@ -1078,5 +1081,101 @@ public class MainActivity extends AppCompatActivity {
         
         tvSettingsHint.setText(currentShiftStatus);
         tvSettingsHint.setBackgroundColor(bgColor);
+    }
+
+    /**
+     * 检查并恢复未完成的午睡
+     */
+    private void checkAndRestoreNap() {
+        Log.d(TAG, "检查是否有未完成的午睡");
+        
+        try {
+            // 从SharedPreferences获取午睡结束时间
+            SharedPreferences sp = getSharedPreferences("nap_settings", MODE_PRIVATE);
+            long napEndTime = sp.getLong("nap_end_time", 0);
+            
+            if (napEndTime == 0) {
+                Log.d(TAG, "没有未完成的午睡");
+                return;
+            }
+            
+            // 获取当前时间
+            long currentTime = System.currentTimeMillis();
+            
+            // 如果午睡结束时间已过，则不需要恢复
+            if (napEndTime <= currentTime) {
+                Log.d(TAG, "午睡已结束，清除记录");
+                sp.edit().remove("nap_end_time").apply();
+                
+                // 确保勿扰模式已关闭
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                    NotificationManager notificationManager = (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
+                    if (notificationManager != null && notificationManager.getCurrentInterruptionFilter() != NotificationManager.INTERRUPTION_FILTER_ALL) {
+                        // 发送结束广播
+                        Intent endNapIntent = new Intent(this, NapAlarmReceiver.class);
+                        endNapIntent.setAction(NapAlarmReceiver.ACTION_NAP_ALARM_END);
+                        sendBroadcast(endNapIntent);
+                        Log.d(TAG, "已发送结束午睡广播，确保勿扰模式关闭");
+                    }
+                }
+                return;
+            }
+            
+            // 午睡尚未结束，重新设置结束闹钟
+            long remainingTimeMs = napEndTime - currentTime;
+            int remainingMinutes = (int) (remainingTimeMs / 60000);
+            
+            Log.d(TAG, "发现未完成的午睡，剩余时间: " + remainingMinutes + "分钟");
+            
+            // 创建结束勿扰的广播接收器
+            Intent endNapIntent = new Intent(this, NapAlarmReceiver.class);
+            endNapIntent.setAction(NapAlarmReceiver.ACTION_NAP_ALARM_END);
+            PendingIntent endNapPendingIntent = PendingIntent.getBroadcast(
+                this,
+                1002,
+                endNapIntent,
+                PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE
+            );
+            
+            // 设置结束闹钟
+            AlarmManager alarmManager = (AlarmManager) getSystemService(Context.ALARM_SERVICE);
+            if (alarmManager != null) {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                    alarmManager.setExactAndAllowWhileIdle(
+                        AlarmManager.RTC_WAKEUP,
+                        napEndTime,
+                        endNapPendingIntent
+                    );
+                } else {
+                    alarmManager.setExact(
+                        AlarmManager.RTC_WAKEUP,
+                        napEndTime,
+                        endNapPendingIntent
+                    );
+                }
+                
+                // 确保勿扰模式已开启
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                    NotificationManager notificationManager = (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
+                    if (notificationManager != null && notificationManager.getCurrentInterruptionFilter() == NotificationManager.INTERRUPTION_FILTER_ALL) {
+                        // 发送开始广播
+                        Intent startNapIntent = new Intent(this, NapAlarmReceiver.class);
+                        startNapIntent.setAction(NapAlarmReceiver.ACTION_NAP_ALARM_START);
+                        sendBroadcast(startNapIntent);
+                        Log.d(TAG, "已发送开始午睡广播，确保勿扰模式开启");
+                    }
+                }
+                
+                Log.d(TAG, "已恢复午睡结束闹钟，将在 " + new Date(napEndTime) + " 结束");
+                
+                // 显示通知
+                String notificationTitle = "午睡勿扰已恢复";
+                String notificationText = String.format("将在%d分钟后结束勿扰模式", remainingMinutes);
+                AlarmHelper.createDndSettingNotification(this, notificationTitle, notificationText);
+                Toast.makeText(this, notificationTitle + "\n" + notificationText, Toast.LENGTH_LONG).show();
+            }
+        } catch (Exception e) {
+            Log.e(TAG, "恢复午睡时出错", e);
+        }
     }
 }

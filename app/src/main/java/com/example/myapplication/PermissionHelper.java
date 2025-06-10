@@ -52,7 +52,7 @@ public class PermissionHelper {
                 try {
                     Intent intent = new Intent();
                     intent.setAction("android.settings.REQUEST_SCHEDULE_EXACT_ALARM");
-                    activity.startActivity(intent);
+                activity.startActivity(intent);
                 } catch (Exception e) {
                     Log.e(TAG, "无法打开精确闹钟权限设置", e);
                     openAppSettings(activity);

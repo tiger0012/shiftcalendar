@@ -10,15 +10,15 @@
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:orientation="vertical"
-        android:padding="8dp"
-        android:gravity="center_horizontal">
+    android:orientation="vertical"
+    android:padding="8dp"
+    android:gravity="center_horizontal">
 
-        <TextView
+    <TextView
             android:layout_width="match_parent"
-            android:layout_height="wrap_content"
+        android:layout_height="wrap_content"
             android:layout_marginBottom="4dp"
-            android:text="设置自定义闹钟时间"
+        android:text="设置自定义闹钟时间"
             android:textColor="@color/black"
             android:textSize="16sp"
             android:gravity="center"
@@ -26,8 +26,8 @@
 
         <TextView
             android:id="@+id/tv_alarm_description"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
             android:text="• 根据班组自动设置闹钟，工作日提醒，休息日不提醒\n• 白班和夜班使用不同的闹钟时间\n• 点击时间可以自定义闹钟时间"
             android:textSize="12sp"
             android:background="#F0F0F0"
@@ -48,9 +48,9 @@
                 app:cardCornerRadius="4dp"
                 app:cardElevation="2dp">
 
-                <LinearLayout
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
                     android:orientation="vertical"
                     android:padding="6dp">
 
@@ -73,12 +73,12 @@
                         android:textColor="@android:color/darker_gray"
                         android:textSize="11sp" />
 
-                    <TextView
-                        android:id="@+id/tv_day_shift_time"
+                <TextView
+                    android:id="@+id/tv_day_shift_time"
                         android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:background="?attr/selectableItemBackground"
-                        android:clickable="true"
+                    android:layout_height="wrap_content"
+                    android:background="?attr/selectableItemBackground"
+                    android:clickable="true"
                         android:focusable="true"
                         android:padding="4dp"
                         android:gravity="center"
@@ -86,48 +86,48 @@
                         android:textColor="@color/black"
                         android:textSize="18sp"
                         android:textStyle="bold" />
-                </LinearLayout>
-            </androidx.cardview.widget.CardView>
+        </LinearLayout>
+    </androidx.cardview.widget.CardView>
 
-            <androidx.cardview.widget.CardView
+    <androidx.cardview.widget.CardView
                 android:layout_width="0dp"
-                android:layout_height="wrap_content"
+        android:layout_height="wrap_content"
                 android:layout_weight="1"
                 android:layout_marginStart="4dp"
                 app:cardCornerRadius="4dp"
-                app:cardElevation="2dp">
+        app:cardElevation="2dp">
 
-                <LinearLayout
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:orientation="vertical"
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
                     android:padding="6dp">
 
-                    <TextView
+            <TextView
                         android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
+                android:layout_height="wrap_content"
                         android:layout_marginBottom="1dp"
-                        android:text="夜班闹钟时间"
-                        android:textColor="@color/black"
+                android:text="夜班闹钟时间"
+                android:textColor="@color/black"
                         android:gravity="center"
                         android:textSize="14sp"
                         android:textStyle="bold" />
 
-                    <TextView
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
                         android:layout_marginBottom="2dp"
                         android:text="(16:00 - 20:00)"
                         android:gravity="center"
                         android:textColor="@android:color/darker_gray"
                         android:textSize="11sp" />
 
-                    <TextView
-                        android:id="@+id/tv_night_shift_time"
+                <TextView
+                    android:id="@+id/tv_night_shift_time"
                         android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:background="?attr/selectableItemBackground"
-                        android:clickable="true"
+                    android:layout_height="wrap_content"
+                    android:background="?attr/selectableItemBackground"
+                    android:clickable="true"
                         android:focusable="true"
                         android:padding="4dp"
                         android:gravity="center"
@@ -135,39 +135,39 @@
                         android:textColor="@color/black"
                         android:textSize="18sp"
                         android:textStyle="bold" />
-                </LinearLayout>
+            </LinearLayout>
             </androidx.cardview.widget.CardView>
         </LinearLayout>
 
-        <Button
-            android:id="@+id/btn_set_custom_alarm"
-            android:layout_width="match_parent"
+    <Button
+        android:id="@+id/btn_set_custom_alarm"
+        android:layout_width="match_parent"
             android:layout_height="36dp"
             android:layout_marginBottom="8dp"
-            android:text="设置闹钟"
-            android:textSize="14sp"
-            android:backgroundTint="@color/design_default_color_primary"/>
+        android:text="设置闹钟"
+        android:textSize="14sp"
+        android:backgroundTint="@color/design_default_color_primary"/>
 
-        <View
-            android:layout_width="match_parent"
-            android:layout_height="1dp"
-            android:background="#CCCCCC"
+    <View
+        android:layout_width="match_parent"
+        android:layout_height="1dp"
+        android:background="#CCCCCC"
             android:layout_marginBottom="8dp"/>
 
-        <TextView
+    <TextView
             android:id="@+id/tv_dnd_title"
             android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:text="勿扰模式设置"
+        android:layout_height="wrap_content"
+        android:text="勿扰模式设置"
             android:textSize="16sp"
             android:gravity="center"
-            android:textStyle="bold"
+        android:textStyle="bold"
             android:layout_marginBottom="4dp"/>
 
         <TextView
             android:id="@+id/tv_dnd_description"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
             android:text="• 完全勿扰：指定时段内禁止通知声音 • 允许重复来电响铃 • 闹钟不受影响 • 解锁时允许声音提醒"
             android:textSize="12sp"
             android:background="#F0F0F0"
@@ -187,29 +187,29 @@
                 android:text="白班勿扰时段:"
                 android:textSize="14sp"/>
 
-            <TextView
-                android:id="@+id/tv_dnd_start_time"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="22:00"
+                <TextView
+                    android:id="@+id/tv_dnd_start_time"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="22:00"
                 android:textSize="14sp"
-                android:padding="4dp"
+                    android:padding="4dp"
                 android:background="#E0E0E0"/>
 
-            <TextView
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
                 android:text="-"
                 android:textSize="14sp"
                 android:padding="4dp"/>
 
-            <TextView
-                android:id="@+id/tv_dnd_end_time"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="06:00"
+                <TextView
+                    android:id="@+id/tv_dnd_end_time"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="06:00"
                 android:textSize="14sp"
-                android:padding="4dp"
+                    android:padding="4dp"
                 android:background="#E0E0E0"/>
         </LinearLayout>
 
@@ -226,31 +226,31 @@
                 android:text="夜班勿扰时段:"
                 android:textSize="14sp"/>
 
-            <TextView
-                android:id="@+id/tv_dnd_night_start_time"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="09:00"
+                <TextView
+                    android:id="@+id/tv_dnd_night_start_time"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="09:00"
                 android:textSize="14sp"
-                android:padding="4dp"
+                    android:padding="4dp"
                 android:background="#E0E0E0"/>
 
-            <TextView
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
                 android:text="-"
                 android:textSize="14sp"
                 android:padding="4dp"/>
 
-            <TextView
-                android:id="@+id/tv_dnd_night_end_time"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="18:00"
+                <TextView
+                    android:id="@+id/tv_dnd_night_end_time"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="18:00"
                 android:textSize="14sp"
-                android:padding="4dp"
+                    android:padding="4dp"
                 android:background="#E0E0E0"/>
-        </LinearLayout>
+            </LinearLayout>
 
         <Button
             android:id="@+id/btn_set_dnd"
@@ -312,26 +312,26 @@
                 <TextView
                     android:id="@+id/tv_nap_duration"
                     android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:text="00:35"
+                        android:layout_height="wrap_content"
+                        android:text="00:35"
                     android:gravity="center"
                     android:textSize="18sp"
-                    android:textStyle="bold"
-                    android:textColor="@color/black"
-                    android:padding="4dp"
-                    android:background="?attr/selectableItemBackground"
-                    android:clickable="true"
-                    android:focusable="true"/>
+                        android:textStyle="bold"
+                        android:textColor="@color/black"
+                        android:padding="4dp"
+                        android:background="?attr/selectableItemBackground"
+                        android:clickable="true"
+                        android:focusable="true"/>
             </LinearLayout>
 
-            <Button
-                android:id="@+id/btn_set_nap_dnd"
-                android:layout_width="wrap_content"
+                    <Button
+                        android:id="@+id/btn_set_nap_dnd"
+                        android:layout_width="wrap_content"
                 android:layout_height="36dp"
-                android:layout_marginStart="8dp"
-                android:text="开始午睡"
-                android:textSize="14sp"
-                android:backgroundTint="@color/design_default_color_primary"/>
-        </LinearLayout>
+                        android:layout_marginStart="8dp"
+                        android:text="开始午睡"
+                        android:textSize="14sp"
+                        android:backgroundTint="@color/design_default_color_primary"/>
+                </LinearLayout>
     </LinearLayout>
 </ScrollView>
