@@ -158,7 +158,14 @@ public class DndForegroundService extends Service {
                 PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE
         );
 
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+        // ★ 也用 setAlarmClock（和 scheduleEndAlarm 一致）
+        boolean canExact = true;
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            canExact = am.canScheduleExactAlarms();
+        }
+        if (canExact) {
+            am.setAlarmClock(new AlarmManager.AlarmClockInfo(target.getTimeInMillis(), null), pi);
+        } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
             am.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, target.getTimeInMillis(), pi);
         } else {
             am.setExact(AlarmManager.RTC_WAKEUP, target.getTimeInMillis(), pi);
@@ -189,11 +196,24 @@ public class DndForegroundService extends Service {
      * \u5173\u95ed\u52ff\u6270\u6a21\u5f0f + \u6e05\u7406\u8d44\u6e90 + \u505c\u6b62\u670d\u52a1\u3002
      */
     private void disableDndAndStop() {
+        // ★ 防重复：如果勿扰已关闭，直接退出（5000+5001 双通道同时触发时会进来两次）
+        NotificationManager nm = (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
+        if (nm != null && Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            int currentFilter = nm.getCurrentInterruptionFilter();
+            if (currentFilter == NotificationManager.INTERRUPTION_FILTER_ALL) {
+                Log.d(TAG, "\u52ff\u6270\u5df2\u5173\u95ed\uff0c\u8df3\u8fc7\u91cd\u590d\u6267\u884c");
+                cancelCheckAlarm();
+                cancelBroadcastEndAlarm(this);
+                stopForeground(true);
+                stopSelf();
+                return;
+            }
+        }
+
         try {
             Notification notification = buildRunningNotification();
             startForeground(NOTIFICATION_ID, notification);
 
-            NotificationManager nm = (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
             if (nm != null && Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
                 nm.setInterruptionFilter(NotificationManager.INTERRUPTION_FILTER_ALL);
                 Log.d(TAG, "\u2705 \u5df2\u901a\u8fc7\u524d\u53f0\u670d\u52a1\u5173\u95ed\u52ff\u6270\u6a21\u5f0f");
@@ -275,7 +295,19 @@ public class DndForegroundService extends Service {
                 PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE
         );
 
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+        // ★ 用 setAlarmClock 代替 setExactAndAllowWhileIdle
+        //   setExactAndAllowWhileIdle 在 Doze 模式下会有延迟（你的日志里延迟了 44 秒）
+        //   setAlarmClock 是最高优先级，Doze 下也能精确触发
+        boolean canExact = true;
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            canExact = am.canScheduleExactAlarms();
+        }
+
+        if (canExact) {
+            AlarmManager.AlarmClockInfo acInfo = new AlarmManager.AlarmClockInfo(targetMillis, null);
+            am.setAlarmClock(acInfo, fsPi);
+            am.setAlarmClock(acInfo, bcPi);
+        } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
             am.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, targetMillis, fsPi);
             am.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, targetMillis, bcPi);
         } else {

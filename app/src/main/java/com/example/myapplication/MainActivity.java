@@ -973,6 +973,11 @@ public class MainActivity extends AppCompatActivity {
 
         // 同时设置开启和关闭两个独立闹钟，互不依赖
         scheduleDndAlarm(context, alarmManager, 1001, true, nextOnTime.getTimeInMillis());
+        Log.d("DndForegroundService", "\u23f0 \u5df2\u8bbe\u5f00\u542f\u95f9\u949f \u2192 "
+                + nextOnTime.get(Calendar.HOUR_OF_DAY) + ":"
+                + String.format("%02d", nextOnTime.get(Calendar.MINUTE))
+                + (nextOnTime.get(Calendar.DAY_OF_YEAR) != Calendar.getInstance().get(Calendar.DAY_OF_YEAR) ? " (\u660e\u5929)" : ""));
+
         scheduleDndAlarm(context, alarmManager, 1002, false, nextOffTime.getTimeInMillis());
 
         // 真我/ColorOS 等 OEM 杀掉应用后可能丢弃第三方 Alarm，设置一个冗余闹钟作为兜底
@@ -981,7 +986,7 @@ public class MainActivity extends AppCompatActivity {
         // ★ 直接设 5000/5001 双通道结束闹钟（不依赖 DndAlarmReceiver 广播链）
         DndForegroundService.scheduleEndAlarm(context);
 
-        Log.d(TAG, "✅ 已设置全部闹钟: 开启(1001) + 关闭(1002/1003) + 双通道结束(5000/5001)");
+        Log.d("DndForegroundService", "\u2705 \u5168\u90e8\u95f9\u949f\u5df2\u8bbe: \u5f00\u542f(1001)+\u5173\u95ed(1002/1003)+\u53cc\u901a\u9053(5000/5001)");
     }
 
     /**
