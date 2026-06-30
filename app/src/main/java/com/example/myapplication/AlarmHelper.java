@@ -9,6 +9,7 @@ import android.content.ContentValues;
 import android.content.ContentResolver;
 import android.content.Context;
 import android.content.Intent;
+import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
 import android.Manifest;
 import android.net.Uri;
@@ -39,7 +40,10 @@ public class AlarmHelper {
     private static final int ALARM_REQUEST_CODE = 123;
     private static final String CHANNEL_ID = "shift_alarm_channel";
     private static final String CHANNEL_NAME = "班次提醒";
+    private static final String DND_TIMEOUT_CHANNEL_ID = "dnd_timeout_channel";
+    private static final String DND_TIMEOUT_CHANNEL_NAME = "勿扰定时兜底";
     private static final int NOTIFICATION_ID = 1;
+    private static final int DND_TIMEOUT_NOTIFICATION_ID = 8888;
     private static final String MIUI_ALARM_AUTHORITY = "com.android.deskclock.MyAiActionProvider";
     private static final String MIUI_ALARM_TYPE = "urn:aiot-spec-v3:com.mi.phones:action:[com.android.deskclock/deskclock/alarm]:0:2.0";
 
@@ -187,6 +191,115 @@ public class AlarmHelper {
             if (notificationManager != null) {
                 notificationManager.createNotificationChannel(channel);
             }
+        }
+    }
+
+    /**
+     * 创建勿扰超时通知渠道（被杀后仍能触发关闭勿扰的兜底机制）
+     */
+    private static void createDndTimeoutNotificationChannel(Context context) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            NotificationChannel channel = new NotificationChannel(
+                DND_TIMEOUT_CHANNEL_ID,
+                DND_TIMEOUT_CHANNEL_NAME,
+                NotificationManager.IMPORTANCE_DEFAULT
+            );
+            channel.setDescription("用于在应用被杀后仍能自动关闭勿扰模式");
+            channel.setShowBadge(false);
+
+            NotificationManager notificationManager = (NotificationManager) context.getSystemService(Context.NOTIFICATION_SERVICE);
+            if (notificationManager != null) {
+                notificationManager.createNotificationChannel(channel);
+            }
+        }
+    }
+
+    /**
+     * 调度一个系统通知作为勿扰关闭的兜底定时器。
+     * 通知会在勿扰结束时间自动超时移除，并通过 deleteIntent 触发 DndTimeoutReceiver。
+     */
+    public static void scheduleDndTimeoutNotification(Context context) {
+        SharedPreferences prefs = context.getSharedPreferences("alarm_settings_prefs", Context.MODE_PRIVATE);
+        int startHour = prefs.getInt("current_dnd_start_hour", -1);
+        int startMinute = prefs.getInt("current_dnd_start_minute", 0);
+        int endHour = prefs.getInt("current_dnd_end_hour", -1);
+        int endMinute = prefs.getInt("current_dnd_end_minute", 0);
+
+        if (startHour < 0 || endHour < 0) {
+            Log.d(TAG, "未配置勿扰时间，跳过超时通知");
+            return;
+        }
+
+        Calendar now = Calendar.getInstance();
+        int currentMinutes = now.get(Calendar.HOUR_OF_DAY) * 60 + now.get(Calendar.MINUTE);
+        int startMinutes = startHour * 60 + startMinute;
+        int endMinutes = endHour * 60 + endMinute;
+        boolean inRange = startMinutes < endMinutes
+            ? (currentMinutes >= startMinutes && currentMinutes < endMinutes)
+            : (currentMinutes >= startMinutes || currentMinutes < endMinutes);
+
+        Calendar endTime = Calendar.getInstance();
+        endTime.set(Calendar.HOUR_OF_DAY, endHour);
+        endTime.set(Calendar.MINUTE, endMinute);
+        endTime.set(Calendar.SECOND, 0);
+        endTime.set(Calendar.MILLISECOND, 0);
+
+        if (inRange && endTime.before(now)) {
+            // 当前在勿扰区间内且结束时间已过，说明结束时间是明天
+            endTime.add(Calendar.DAY_OF_MONTH, 1);
+        } else if (!inRange && endTime.before(now)) {
+            // 当前不在勿扰区间内且结束时间已过，不创建通知
+            Log.d(TAG, "当前不在勿扰区间内且结束时间已过，不创建超时通知");
+            return;
+        }
+
+        long remainingMs = endTime.getTimeInMillis() - now.getTimeInMillis();
+        if (remainingMs <= 0) {
+            Log.d(TAG, "距离勿扰结束时间不足，不创建超时通知");
+            return;
+        }
+
+        createDndTimeoutNotificationChannel(context);
+
+        Intent intent = new Intent(context, DndTimeoutReceiver.class);
+        intent.setAction(DndTimeoutReceiver.ACTION_DND_TIMEOUT);
+        PendingIntent pendingIntent = PendingIntent.getBroadcast(
+            context,
+            8887,
+            intent,
+            PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE
+        );
+
+        String timeStr = String.format(Locale.getDefault(), "%02d:%02d", endHour, endMinute);
+        NotificationCompat.Builder builder = new NotificationCompat.Builder(context, DND_TIMEOUT_CHANNEL_ID)
+            .setSmallIcon(R.drawable.ic_launcher_foreground)
+            .setContentTitle("勿扰定时运行中")
+            .setContentText("将于 " + timeStr + " 自动关闭勿扰")
+            .setStyle(new NotificationCompat.BigTextStyle()
+                .bigText("将于 " + timeStr + " 自动关闭勿扰。若提前清除此通知，勿扰会被立即关闭。"))
+            .setOngoing(false)
+            .setAutoCancel(false)
+            .setDeleteIntent(pendingIntent)
+            .setTimeoutAfter(remainingMs)
+            .setPriority(NotificationCompat.PRIORITY_DEFAULT);
+
+        try {
+            NotificationManagerCompat.from(context).notify(DND_TIMEOUT_NOTIFICATION_ID, builder.build());
+            Log.d(TAG, "已创建勿扰超时通知，" + remainingMs + " ms 后触发关闭（" + timeStr + "）");
+        } catch (Exception e) {
+            Log.e(TAG, "创建勿扰超时通知失败", e);
+        }
+    }
+
+    /**
+     * 取消勿扰超时兜底通知
+     */
+    public static void cancelDndTimeoutNotification(Context context) {
+        try {
+            NotificationManagerCompat.from(context).cancel(DND_TIMEOUT_NOTIFICATION_ID);
+            Log.d(TAG, "已取消勿扰超时通知");
+        } catch (Exception e) {
+            Log.e(TAG, "取消勿扰超时通知失败", e);
         }
     }
 

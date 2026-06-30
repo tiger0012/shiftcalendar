@@ -12,7 +12,7 @@ public class DateDisplayUtils {
         }
         if (isHoliday) {
             if (!TextUtils.isEmpty(holidayName)) {
-                if (!TextUtils.isEmpty(holidayName)) { sb.append(holidayName); }
+                sb.append("\n").append(holidayName);
             }
         }
         return sb.toString();

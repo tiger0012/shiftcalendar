@@ -1,9 +1,3 @@
-android {
-    defaultConfig {
-        versionCode = 23
-        versionName = "V2025.6.10"
-    }
-}
 plugins {
     alias(libs.plugins.android.application)
 }

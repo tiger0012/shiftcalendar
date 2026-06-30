@@ -112,6 +112,9 @@ public class MainActivity extends AppCompatActivity {
         // 检查并恢复未完成的午睡
         checkAndRestoreNap();
 
+        // 同步勿扰状态：打开 App 时检查当前是否应开启/关闭勿扰
+        MainActivity.syncDndState(this);
+
         // 检查并引导用户授权勿扰模式权限
         NotificationManager notificationManager = (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && notificationManager != null && !notificationManager.isNotificationPolicyAccessGranted()) {
@@ -876,8 +879,9 @@ public class MainActivity extends AppCompatActivity {
             return;
         }
 
-        // 取消之前设置的所有 DND 定时任务，避免重复
-        cancelDndAlarms(context);
+        // ★ 不再先 cancel！scheduleDndAlarm 用 FLAG_UPDATE_CURRENT 会自动替换同 requestCode 的旧闹钟。
+        //   先 cancel 再 set 的话，如果进程在 cancel 之后、set 之前被杀，系统中就一个闹钟都没了。
+        //   cancelDndAlarms 只在「关闭勿扰」时调用。
 
         // 从 SharedPreferences 读取当前选中的班组
         String currentSelectedTeam = appPrefs.getString("last_selected_team", "");
@@ -967,69 +971,121 @@ public class MainActivity extends AppCompatActivity {
         Log.d(TAG, "下一个开启时间: " + nextOnTime.getTime());
         Log.d(TAG, "下一个关闭时间: " + nextOffTime.getTime());
 
-        // 确定下一个最近的定时任务是开启还是关闭
-        Intent nextAlarmIntent = null;
-        PendingIntent nextAlarmPendingIntent = null;
-        long nextAlarmTimeMillis = 0;
-        
-        // 直接比较下一个开启时间和下一个关闭时间，选择更近的一个设置定时任务
-        if (nextOnTime.before(nextOffTime)) {
-            // 下一个最近的是开启时间
-            nextAlarmIntent = new Intent(context, DndAlarmReceiver.class);
-            nextAlarmIntent.putExtra("ENABLE_DND", true);
-            nextAlarmPendingIntent = PendingIntent.getBroadcast(context, 1001, nextAlarmIntent, 
-                PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE | PendingIntent.FLAG_ONE_SHOT);
-            nextAlarmTimeMillis = nextOnTime.getTimeInMillis();
-            Log.d(TAG, "下一个定时任务是开启勿扰: " + nextOnTime.getTime());
+        // 同时设置开启和关闭两个独立闹钟，互不依赖
+        scheduleDndAlarm(context, alarmManager, 1001, true, nextOnTime.getTimeInMillis());
+        scheduleDndAlarm(context, alarmManager, 1002, false, nextOffTime.getTimeInMillis());
+
+        // 真我/ColorOS 等 OEM 杀掉应用后可能丢弃第三方 Alarm，设置一个冗余闹钟作为兜底
+        scheduleDndAlarm(context, alarmManager, 1003, false, nextOffTime.getTimeInMillis() + 60_000);
+
+        // ★ 直接设 5000/5001 双通道结束闹钟（不依赖 DndAlarmReceiver 广播链）
+        DndForegroundService.scheduleEndAlarm(context);
+
+        Log.d(TAG, "✅ 已设置全部闹钟: 开启(1001) + 关闭(1002/1003) + 双通道结束(5000/5001)");
+    }
+
+    /**
+     * 统一设置单个 DND 闹钟。
+     * 关闭闹钟使用两种 operation 作为冗余：
+     *   - 主关闭闹钟（1002）使用透明 Activity，真我/ColorOS 对 activity 启动的拦截策略
+     *     与 service 不同，可能被杀后仍能拉起。
+     *   - 冗余关闭闹钟（1003）使用 ForegroundService，作为 App 存活时的快速路径。
+     */
+    private static void scheduleDndAlarm(Context context, AlarmManager alarmManager,
+                                          int requestCode, boolean enable, long timeMillis) {
+        if (enable) {
+            Intent intent = new Intent(context, DndAlarmReceiver.class);
+            intent.putExtra("ENABLE_DND", true);
+            PendingIntent pendingIntent = PendingIntent.getBroadcast(context, requestCode, intent,
+                PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
+            scheduleAlarmInternal(alarmManager, pendingIntent, timeMillis);
         } else {
-            // 下一个最近的是关闭时间
-            nextAlarmIntent = new Intent(context, DndAlarmReceiver.class);
-            nextAlarmIntent.putExtra("ENABLE_DND", false);
-            nextAlarmPendingIntent = PendingIntent.getBroadcast(context, 1002, nextAlarmIntent, 
-                PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE | PendingIntent.FLAG_ONE_SHOT);
-            nextAlarmTimeMillis = nextOffTime.getTimeInMillis();
-            Log.d(TAG, "下一个定时任务是关闭勿扰: " + nextOffTime.getTime());
+            if (requestCode == 1002) {
+                // 主关闭闹钟：透明 Activity，尝试绕过 ColorOS 对 service 启动的拦截
+                Intent intent = new Intent(context, DndCloseActivity.class);
+                PendingIntent pendingIntent = PendingIntent.getActivity(context, requestCode, intent,
+                    PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
+                scheduleAlarmInternal(alarmManager, pendingIntent, timeMillis);
+            } else {
+                // 冗余关闭闹钟：前台服务
+                Intent intent = new Intent(context, DndForegroundService.class);
+                intent.setAction(DndForegroundService.ACTION_DND_OFF);
+                PendingIntent pendingIntent = PendingIntent.getForegroundService(context, requestCode, intent,
+                    PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
+                scheduleAlarmInternal(alarmManager, pendingIntent, timeMillis);
+            }
+        }
+        Log.d(TAG, "已设置" + (enable ? "开启" : "关闭") + "闹钟 at " + new Date(timeMillis));
+    }
+
+    private static void scheduleAlarmInternal(AlarmManager alarmManager, PendingIntent pendingIntent, long timeMillis) {
+        try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                boolean canScheduleExact = true;
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                    canScheduleExact = alarmManager.canScheduleExactAlarms();
+                }
+
+                if (canScheduleExact) {
+                    AlarmManager.AlarmClockInfo alarmClockInfo = new AlarmManager.AlarmClockInfo(timeMillis, null);
+                    alarmManager.setAlarmClock(alarmClockInfo, pendingIntent);
+                } else {
+                    alarmManager.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, timeMillis, pendingIntent);
+                }
+            } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
+                alarmManager.setExact(AlarmManager.RTC_WAKEUP, timeMillis, pendingIntent);
+            } else {
+                alarmManager.set(AlarmManager.RTC_WAKEUP, timeMillis, pendingIntent);
+            }
+        } catch (Exception e) {
+            Log.e(TAG, "设置定时任务失败", e);
+        }
+    }
+
+    /**
+     * 同步勿扰状态：根据当前时间判断是否应该开启或关闭勿扰。
+     * 用于 App 回到前台时兜底修正状态，也用于被杀后重新打开时的恢复。
+     */
+    public static void syncDndState(Context context) {
+        SharedPreferences prefs = context.getSharedPreferences("alarm_settings_prefs", Context.MODE_PRIVATE);
+        int startHour = prefs.getInt("current_dnd_start_hour", -1);
+        int startMinute = prefs.getInt("current_dnd_start_minute", 0);
+        int endHour = prefs.getInt("current_dnd_end_hour", -1);
+        int endMinute = prefs.getInt("current_dnd_end_minute", 0);
+
+        if (startHour < 0 || endHour < 0) {
+            Log.d(TAG, "syncDndState: 未配置勿扰时间，跳过");
+            return;
         }
 
-        // 设置精确的定时任务
-        if (nextAlarmPendingIntent != null) {
-            try {
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-                    // 修改这里，根据API版本检查能否使用精确闹钟
-                    boolean canScheduleExact = true; // 默认假设可以
-                    
-                    // 仅在Android 12 (API 31)及以上版本检查精确闹钟权限
-                    if (Build.VERSION.SDK_INT >= 31) { // Build.VERSION_CODES.S
-                        canScheduleExact = alarmManager.canScheduleExactAlarms();
-                    }
-                    
-                    if (canScheduleExact) {
-                        // 使用 setAlarmClock，它在某些设备上可能有更高优先级
-                        AlarmManager.AlarmClockInfo alarmClockInfo = new AlarmManager.AlarmClockInfo(nextAlarmTimeMillis, null);
-                        alarmManager.setAlarmClock(alarmClockInfo, nextAlarmPendingIntent);
-                        Log.d(TAG, "已使用 setAlarmClock 设置定时任务 at: " + new Date(nextAlarmTimeMillis).toString());
-                    } else {
-                        // 如果无法设置精确闹钟，退回到 setExactAndAllowWhileIdle
-                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-                            alarmManager.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, nextAlarmTimeMillis, nextAlarmPendingIntent);
-                            Log.d(TAG, "退回到 setExactAndAllowWhileIdle 设置定时任务");
-                        } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
-                            alarmManager.setExact(AlarmManager.RTC_WAKEUP, nextAlarmTimeMillis, nextAlarmPendingIntent);
-                            Log.d(TAG, "退回到 setExact 设置定时任务");
-                        } else {
-                            alarmManager.set(AlarmManager.RTC_WAKEUP, nextAlarmTimeMillis, nextAlarmPendingIntent);
-                            Log.d(TAG, "退回到 set 设置定时任务");
-                        }
-                    }
-                } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
-                    alarmManager.setExact(AlarmManager.RTC_WAKEUP, nextAlarmTimeMillis, nextAlarmPendingIntent);
-                    Log.d(TAG, "已使用 setExact 设置定时任务 (pre-M) at: " + new Date(nextAlarmTimeMillis).toString());
-                } else {
-                    alarmManager.set(AlarmManager.RTC_WAKEUP, nextAlarmTimeMillis, nextAlarmPendingIntent);
-                    Log.d(TAG, "已使用 set 设置定时任务 (pre-KITKAT) at: " + new Date(nextAlarmTimeMillis).toString());
-                }
-            } catch (Exception e) {
-                Log.e(TAG, "设置定时任务失败", e);
+        Calendar now = Calendar.getInstance();
+        int currentMinutes = now.get(Calendar.HOUR_OF_DAY) * 60 + now.get(Calendar.MINUTE);
+        int startMinutes = startHour * 60 + startMinute;
+        int endMinutes = endHour * 60 + endMinute;
+        boolean inRange = startMinutes < endMinutes
+            ? (currentMinutes >= startMinutes && currentMinutes < endMinutes)
+            : (currentMinutes >= startMinutes || currentMinutes < endMinutes);
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            NotificationManager nm = (NotificationManager) context.getSystemService(Context.NOTIFICATION_SERVICE);
+            if (nm == null) return;
+
+            int currentFilter = nm.getCurrentInterruptionFilter();
+            boolean isDndOn = currentFilter != NotificationManager.INTERRUPTION_FILTER_ALL
+                && currentFilter != NotificationManager.INTERRUPTION_FILTER_UNKNOWN;
+
+            Log.d(TAG, "syncDndState: 当前在勿扰区间=" + inRange + ", 勿扰已开启=" + isDndOn);
+
+            if (inRange && !isDndOn) {
+                Intent intent = new Intent(context, DndAlarmReceiver.class);
+                intent.putExtra("ENABLE_DND", true);
+                context.sendBroadcast(intent);
+                Log.d(TAG, "syncDndState: 发送开启勿扰广播");
+            } else if (!inRange && isDndOn) {
+                Intent intent = new Intent(context, DndAlarmReceiver.class);
+                intent.putExtra("ENABLE_DND", false);
+                context.sendBroadcast(intent);
+                Log.d(TAG, "syncDndState: 发送关闭勿扰广播");
             }
         }
     }
@@ -1042,17 +1098,31 @@ public class MainActivity extends AppCompatActivity {
         AlarmManager alarmManager = (AlarmManager) context.getSystemService(Context.ALARM_SERVICE);
         if (alarmManager == null) return;
 
-        // 取消开启勿扰的 PendingIntent
+        // 取消开启勿扰的 PendingIntent (broadcast)
         Intent dndOnIntent = new Intent(context, DndAlarmReceiver.class);
         PendingIntent dndOnPendingIntent = PendingIntent.getBroadcast(context, 1001, dndOnIntent, PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
         alarmManager.cancel(dndOnPendingIntent);
+        dndOnPendingIntent.cancel();
         Log.d(TAG, "已取消勿扰开启定时任务");
 
-        // 取消关闭勿扰的 PendingIntent
-        Intent dndOffIntent = new Intent(context, DndAlarmReceiver.class);
-        PendingIntent dndOffPendingIntent = PendingIntent.getBroadcast(context, 1002, dndOffIntent, PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
+        // 取消关闭勿扰的 PendingIntent (透明 Activity)
+        Intent dndOffIntent = new Intent(context, DndCloseActivity.class);
+        PendingIntent dndOffPendingIntent = PendingIntent.getActivity(context, 1002, dndOffIntent, PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
         alarmManager.cancel(dndOffPendingIntent);
+        dndOffPendingIntent.cancel();
         Log.d(TAG, "已取消勿扰关闭定时任务");
+
+        // 取消冗余关闭闹钟 (foreground service)
+        Intent redundantIntent = new Intent(context, DndForegroundService.class);
+        redundantIntent.setAction(DndForegroundService.ACTION_DND_OFF);
+        PendingIntent redundantPendingIntent = PendingIntent.getForegroundService(context, 1003, redundantIntent, PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
+        alarmManager.cancel(redundantPendingIntent);
+        redundantPendingIntent.cancel();
+        Log.d(TAG, "已取消冗余关闭定时任务");
+
+        // ★ 取消 DndForegroundService 双通道结束闹钟 (5000+5001)
+        DndForegroundService.cancelEndAlarm(context);
+        Log.d(TAG, "已取消 DndForegroundService 结束闹钟(5000+5001)");
     }
 
     // 添加更新今日信息的方法

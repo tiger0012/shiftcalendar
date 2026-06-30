@@ -23,6 +23,9 @@ public class BootCompletedReceiver extends BroadcastReceiver {
                 Log.d(TAG, "DND settings found, setting DND alarms.");
                 // 设备启动完成，重新设置勿扰定时任务
                 MainActivity.setDndAlarms(context);
+
+                // 同时恢复通知超时兜底机制，确保被杀后仍能触发关闭
+                AlarmHelper.scheduleDndTimeoutNotification(context);
             } else {
                 Log.d(TAG, "No DND settings found, skipping setting DND alarms.");
             }

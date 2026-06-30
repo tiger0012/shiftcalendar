@@ -342,7 +342,7 @@ public class AlarmSettingsActivity extends AppCompatActivity {
         // 设置默认值：完全勿扰模式且允许重复来电
         int dndModeType = 1; // 1=完全勿扰
         boolean allowRepeatedCalls = true; // 允许重复来电
-        
+
         SharedPreferences sp = getSharedPreferences("alarm_settings_prefs", MODE_PRIVATE);
         sp.edit()
           .putInt("dnd_mode_type", dndModeType)
@@ -358,6 +358,9 @@ public class AlarmSettingsActivity extends AppCompatActivity {
                 Toast.makeText(this, "请在设置中授予勿扰模式权限", Toast.LENGTH_LONG).show();
                 return;
             }
+
+            // === 白名单引导：国产 ROM 需要用户手动设置白名单才能保证被杀后仍能自动关闭勿扰 ===
+            checkAndShowWhitelistGuide();
 
             // 判断当前选择班组当天是白班还是夜班
             boolean isDayShiftToday = false;
@@ -462,7 +465,7 @@ public class AlarmSettingsActivity extends AppCompatActivity {
 
                 Log.d(TAG, "已调用 MainActivity.setDndAlarms");
 
-                // --- 新增逻辑：根据当前时间判断是否应立即进入勿扰模式并设置状态 ---
+                // --- 根据当前时间立即同步勿扰状态，统一走 DndAlarmReceiver ---
                 Calendar now = Calendar.getInstance();
                 Calendar dndStart = Calendar.getInstance();
                 dndStart.set(Calendar.HOUR_OF_DAY, dndStartHour);
@@ -478,7 +481,7 @@ public class AlarmSettingsActivity extends AppCompatActivity {
 
                 boolean shouldBeInDndNow = false;
 
-                if (dndStartHour < dndEndHour) { // 勿扰区间不跨天
+                if (dndStartHour < dndEndHour || (dndStartHour == dndEndHour && dndStartMinute < dndEndMinute)) {
                     if (now.after(dndStart) && now.before(dndEnd)) {
                         shouldBeInDndNow = true;
                     }
@@ -488,64 +491,17 @@ public class AlarmSettingsActivity extends AppCompatActivity {
                      }
                 }
 
-                NotificationManager notificationManagerInstant = (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
-                if (notificationManagerInstant != null) {
-                    if (shouldBeInDndNow) {
-                         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
-                             NotificationManager.Policy policy;
-                             if (dndModeType == 1) {
-                                 // 完全勿扰模式 - 只允许闹钟
-                                 policy = new NotificationManager.Policy(
-                                     NotificationManager.Policy.PRIORITY_CATEGORY_ALARMS,
-                                     0,
-                                     0
-                                 );
-                                 Log.d(TAG, "立即设置完全勿扰模式");
-                             } else {
-                                 // 优先勿扰模式
-                                 policy = new NotificationManager.Policy(
-                                     NotificationManager.Policy.PRIORITY_CATEGORY_ALARMS |
-                                     NotificationManager.Policy.PRIORITY_CATEGORY_REMINDERS |
-                                     NotificationManager.Policy.PRIORITY_CATEGORY_CALLS |
-                                     NotificationManager.Policy.PRIORITY_CATEGORY_MESSAGES,
-                                     NotificationManager.Policy.PRIORITY_SENDERS_ANY,
-                                     0
-                                 );
-                                 Log.d(TAG, "立即设置优先通知勿扰模式");
-                             }
-                             
-                             try {
-                                 // 华为手机兼容处理
-                                 notificationManagerInstant.setNotificationPolicy(policy);
-                                 
-                                 // 为防止某些设备直接设置导致崩溃，使用延迟设置过滤器的方式
-                                 new Thread(() -> {
-                                     try {
-                                         Thread.sleep(100); // 延迟100毫秒再设置过滤器
-                                         runOnUiThread(() -> {
-                                             try {
-                                                 notificationManagerInstant.setInterruptionFilter(NotificationManager.INTERRUPTION_FILTER_PRIORITY);
-                                                 Log.d(TAG, "已设置勿扰过滤器模式");
-                                             } catch (Exception e) {
-                                                 Log.e(TAG, "设置勿扰过滤器失败", e);
-                                             }
-                                         });
-                                     } catch (InterruptedException e) {
-                                         Log.e(TAG, "延迟设置勿扰被中断", e);
-                                     }
-                                 }).start();
-                                 
-                                 Log.d(TAG, "立即应用勿扰模式策略");
-                             } catch (Exception e) {
-                                 Log.e(TAG, "设置勿扰模式失败", e);
-                             }
-                         }
-                        Toast.makeText(this, "勿扰模式已立即开启", Toast.LENGTH_SHORT).show();
-                    } else {
-                        notificationManagerInstant.setInterruptionFilter(NotificationManager.INTERRUPTION_FILTER_ALL);
-                        Log.d(TAG, "立即设置勿扰模式：已关闭");
-                        Toast.makeText(this, "勿扰模式已立即关闭", Toast.LENGTH_SHORT).show();
-                    }
+                Intent dndIntent = new Intent(this, DndAlarmReceiver.class);
+                if (shouldBeInDndNow) {
+                    dndIntent.putExtra("ENABLE_DND", true);
+                    sendBroadcast(dndIntent);
+                    Toast.makeText(this, "勿扰模式已立即开启", Toast.LENGTH_SHORT).show();
+                    Log.d(TAG, "当前在勿扰区间内，发送开启广播到 DndAlarmReceiver");
+                } else {
+                    dndIntent.putExtra("ENABLE_DND", false);
+                    sendBroadcast(dndIntent);
+                    Toast.makeText(this, "勿扰模式已立即关闭", Toast.LENGTH_SHORT).show();
+                    Log.d(TAG, "当前不在勿扰区间内，发送关闭广播到 DndAlarmReceiver");
                 }
                 // --- 新增逻辑结束 ---
 
@@ -584,63 +540,36 @@ public class AlarmSettingsActivity extends AppCompatActivity {
                 endTime.add(Calendar.MINUTE, napMinute);
                 Log.d(TAG, "午睡将在 " + endTime.getTime() + " 结束，持续时间: " + napHour + "小时" + napMinute + "分钟");
                 
-                // 保存结束时间到SharedPreferences，以便可能的恢复使用
+                // 保存结束时间到SharedPreferences
                 SharedPreferences sp = getSharedPreferences("nap_settings", MODE_PRIVATE);
                 sp.edit()
                     .putLong("nap_end_time", endTime.getTimeInMillis())
                     .putInt("nap_hours", napHour)
                     .putInt("nap_minutes", napMinute)
                     .apply();
-                
-                // 创建结束勿扰的广播接收器
+
+                // ── 主要路径：NapAlarmReceiver.start 会通过 DndForegroundService.scheduleNapEndAlarm 设按需闹钟 ──
+                // ── 兜底路径：同时保留旧式广播闹钟作为双重保险 ──
                 Intent endNapIntent = new Intent(this, NapAlarmReceiver.class);
                 endNapIntent.setAction(NapAlarmReceiver.ACTION_NAP_ALARM_END);
                 PendingIntent endNapPendingIntent = PendingIntent.getBroadcast(
-                    this,
-                    1002,
-                    endNapIntent,
+                    this, 1002, endNapIntent,
                     PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE
                 );
 
-                // 设置结束午睡的闹钟
                 AlarmManager alarmManager = (AlarmManager) getSystemService(Context.ALARM_SERVICE);
                 if (alarmManager != null) {
-                    // 取消之前可能存在的闹钟
-                    try {
-                        alarmManager.cancel(endNapPendingIntent);
-                        Log.d(TAG, "已取消之前的午睡结束闹钟");
-                    } catch (Exception e) {
-                        Log.e(TAG, "取消之前闹钟出错", e);
-                    }
-                    
+                    alarmManager.cancel(endNapPendingIntent);
                     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-                        try {
-                            alarmManager.setExactAndAllowWhileIdle(
-                                AlarmManager.RTC_WAKEUP,
-                                endTime.getTimeInMillis(),
-                                endNapPendingIntent
-                            );
-                            Log.d(TAG, "已设置午睡结束精确闹钟，允许唤醒设备");
-                        } catch (Exception e) {
-                            Log.e(TAG, "设置精确闹钟失败，尝试使用普通闹钟", e);
-                            alarmManager.setExact(
-                                AlarmManager.RTC_WAKEUP,
-                                endTime.getTimeInMillis(),
-                                endNapPendingIntent
-                            );
-                            Log.d(TAG, "已使用普通精确闹钟");
-                        }
+                        alarmManager.setExactAndAllowWhileIdle(
+                            AlarmManager.RTC_WAKEUP, endTime.getTimeInMillis(), endNapPendingIntent);
                     } else {
-                        alarmManager.setExact(
-                            AlarmManager.RTC_WAKEUP,
-                            endTime.getTimeInMillis(),
-                            endNapPendingIntent
-                        );
-                        Log.d(TAG, "已设置普通精确闹钟");
+                        alarmManager.setExact(AlarmManager.RTC_WAKEUP, endTime.getTimeInMillis(), endNapPendingIntent);
                     }
+                    Log.d(TAG, "已设置午睡兜底结束广播闹钟");
                 }
 
-                // 创建并立即触发开始勿扰的广播接收器
+                // 立即触发开始勿扰
                 Intent startNapIntent = new Intent(this, NapAlarmReceiver.class);
                 startNapIntent.setAction(NapAlarmReceiver.ACTION_NAP_ALARM_START);
                 PendingIntent startNapPendingIntent = PendingIntent.getBroadcast(
@@ -714,5 +643,67 @@ public class AlarmSettingsActivity extends AppCompatActivity {
              Toast.makeText(this, "需要通知权限才能发送班次提醒", Toast.LENGTH_LONG).show();
              PermissionHelper.openAppSettings(this);
          }
+    }
+
+    // ==================== 白名单引导相关 ====================
+
+    private static final String PREF_WHITELIST_SHOWN = "whitelist_guide_shown";
+
+    /**
+     * 检查是否需要显示白名单引导
+     */
+    private void checkAndShowWhitelistGuide() {
+        // 只在国产 ROM 上提示，且只弹一次
+        if (!DeviceCompat.needsWhitelistGuide()) return;
+
+        SharedPreferences appPrefs = getSharedPreferences("app_prefs", MODE_PRIVATE);
+        boolean alreadyShown = appPrefs.getBoolean(PREF_WHITELIST_SHOWN, false);
+        if (alreadyShown) return;
+
+        showWhitelistGuideDialog();
+    }
+
+    /**
+     * 显示白名单设置引导对话框
+     */
+    private void showWhitelistGuideDialog() {
+        String brandName = DeviceCompat.getBrandName();
+        java.util.List<String> steps = DeviceCompat.getWhitelistSteps(this);
+
+        StringBuilder message = new StringBuilder();
+        message.append("您的设备是 ").append(brandName).append("。\n\n");
+        message.append("为了确保勿扰模式在 App 被后台清理后仍能自动关闭，建议进行以下设置：\n\n");
+
+        for (int i = 0; i < steps.size(); i++) {
+            message.append("📌 ").append(steps.get(i));
+            if (i < steps.size() - 1) message.append("\n\n");
+        }
+
+        new androidx.appcompat.app.AlertDialog.Builder(this)
+            .setTitle("⚡ 后台运行优化建议")
+            .setMessage(message.toString())
+            .setPositiveButton("一键跳转电池设置", (dialog, which) -> {
+                // 先标记已展示过
+                getSharedPreferences("app_prefs", MODE_PRIVATE)
+                    .edit().putBoolean(PREF_WHITELIST_SHOWN, true).apply();
+
+                // 跳转到电池优化设置
+                Intent intent = DeviceCompat.openBatteryOptimization(this);
+                if (intent != null) startActivity(intent);
+            })
+            .setNegativeButton("稍后再说", (dialog, which) -> {
+                // 标记已看过，不再弹出
+                getSharedPreferences("app_prefs", MODE_PRIVATE)
+                    .edit().putBoolean(PREF_WHITELIST_SHOWN, true).apply();
+            })
+            .setNeutralButton("打开应用详情页", (dialog, which) -> {
+                getSharedPreferences("app_prefs", MODE_PRIVATE)
+                    .edit().putBoolean(PREF_WHITELIST_SHOWN, true).apply();
+
+                Intent intent = DeviceCompat.openAppDetailSettings(this);
+                if (intent != null) startActivity(intent);
+            })
+            .setCancelable(false)
+            .show();
     }
 } 
