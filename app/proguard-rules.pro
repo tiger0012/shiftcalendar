@@ -19,3 +19,5 @@
 # If you keep the line number information, uncomment this to
 # hide the original source file name.
 #-renamesourcefileattribute SourceFile
+# 保留农历库（避免 R8 混淆/反射剥离导致运行时崩溃）
+-keep class com.nlf.calendar.** { *; }

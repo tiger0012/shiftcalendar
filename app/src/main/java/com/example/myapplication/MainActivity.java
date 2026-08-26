@@ -1,4 +1,3 @@
-//测试git   
 package com.example.myapplication;
 import android.graphics.Color;
 import android.os.Bundle;
@@ -13,9 +12,6 @@ import android.widget.Spinner;
 import android.widget.TextView;
 import android.content.SharedPreferences;
 import androidx.core.content.ContextCompat;
-import androidx.recyclerview.widget.LinearLayoutManager;
-import androidx.recyclerview.widget.RecyclerView; // 补充完整RecyclerView相关导入
-
 import androidx.activity.EdgeToEdge;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.graphics.Insets;
@@ -53,6 +49,7 @@ import android.widget.NumberPicker;
 import java.io.Serializable; // 添加Serializable导入
 import android.view.GestureDetector;
 import android.view.MotionEvent;
+import android.view.ViewTreeObserver;
 import android.view.ScaleGestureDetector;
 import android.app.NotificationManager;
 import android.app.PendingIntent;
@@ -64,11 +61,9 @@ public class MainActivity extends AppCompatActivity {
     private static final String TAG = "MainActivity";
 
     private RecyclerView rvShiftCalendar;
-    private RecyclerView rvWeeknumColumn;
     private TextView tvCurrentMonth;
     private Button btnPreviousMonth;
     private Button btnNextMonth;
-    private WeeknumColumnAdapter weeknumColumnAdapter;
     private TextView tvSettingsHint; // 添加对设置提示文本的引用
     private Button btnToday;
     private TextView tvTodayDescription; // 添加今天按钮说明引用
@@ -175,7 +170,6 @@ public class MainActivity extends AppCompatActivity {
         }
 
         rvShiftCalendar = findViewById(R.id.rv_shift_calendar);
-        rvWeeknumColumn = findViewById(R.id.rv_weeknum_column);
         tvCurrentMonth = findViewById(R.id.tv_current_month);
         btnToday = findViewById(R.id.btn_today);
 
@@ -191,11 +185,7 @@ public class MainActivity extends AppCompatActivity {
         });
 
         rvShiftCalendar.setLayoutManager(new GridLayoutManager(this, 8));
-        rvWeeknumColumn.setLayoutManager(new GridLayoutManager(this, 8));
-        weeknumColumnAdapter = new WeeknumColumnAdapter(new ArrayList<>());
-        rvWeeknumColumn.setAdapter(weeknumColumnAdapter);
-        
-        // 初始化周几标题适配器不再需要，因为我们直接在布局中使用include标签
+
 
         // 1. 读取CSV，转为Map<String, DayShiftGroup> (只读一次)
         allData = readShiftGroupsFromCSV();
@@ -231,6 +221,9 @@ public class MainActivity extends AppCompatActivity {
             v.setPadding(systemBars.left, systemBars.top, systemBars.right, systemBars.bottom);
             return insets;
         });
+
+        // 让日历网格按可用高度均分行高，整月一屏放满、不滚动
+        initCalendarFit();
     }
 
     private Map<String, Integer> teamDaysMap = new HashMap<>();
@@ -333,7 +326,6 @@ public class MainActivity extends AppCompatActivity {
         tvCurrentMonth.setText(currentYear + " " + monthName);
 
         List<CalendarDay> days = generateMonthCalendar(currentYear, currentMonth, allData);
-        List<String> weeknumColumn = generateWeeknumColumn(days);
 
         if (rvShiftCalendar.getAdapter() == null) {
             CalendarAdapter adapter = new CalendarAdapter(days);
@@ -341,8 +333,6 @@ public class MainActivity extends AppCompatActivity {
         } else {
             ((CalendarAdapter) rvShiftCalendar.getAdapter()).updateData(days);
         }
-
-        weeknumColumnAdapter.updateData(weeknumColumn);
 
         // 统计班组总天数
         calculateTeamDays();
@@ -466,6 +456,30 @@ public class MainActivity extends AppCompatActivity {
         startActivity(intent);
     }
 
+    /**
+     * 让日历网格行高 = 可用高度 / 行数，整月填满一屏、无需滚动。
+     */
+    private void initCalendarFit() {
+        rvShiftCalendar.getViewTreeObserver().addOnGlobalLayoutListener(new ViewTreeObserver.OnGlobalLayoutListener() {
+            @Override
+            public void onGlobalLayout() {
+                int h = rvShiftCalendar.getHeight();
+                RecyclerView.Adapter<?> adapter = rvShiftCalendar.getAdapter();
+                if (h <= 0 || !(adapter instanceof CalendarAdapter)) return;
+                int count = adapter.getItemCount();
+                if (count <= 0) return;
+                int rows = (count + 7) / 8; // 每行 8 列（周数 + 7 天）
+                if (rows <= 0) return;
+                int rowHeight = h / rows;
+                CalendarAdapter ca = (CalendarAdapter) adapter;
+                if (ca.getRowHeight() != rowHeight) {
+                    ca.setRowHeight(rowHeight);
+                    ca.notifyDataSetChanged();
+                }
+            }
+        });
+    }
+
     private void navigateMonth(int monthOffset) {
         currentDate = currentDate.withDayOfMonth(1).plusMonths(monthOffset);
         currentYear = currentDate.getYear();
@@ -484,8 +498,9 @@ public class MainActivity extends AppCompatActivity {
         SimpleDateFormat csvDateFormat = new SimpleDateFormat("yyyy/M/d", Locale.getDefault());
         SimpleDateFormat targetDateFormat = new SimpleDateFormat("yyyy-MM-dd", Locale.getDefault());
 
+        // 注意：shift.csv 为 GBK 编码（Excel 导出），若未来导出为 UTF-8 请改回 "UTF-8"
         try (InputStream is = getAssets().open("shift.csv");
-             BufferedReader reader = new BufferedReader(new InputStreamReader(is, "UTF-8"))) {
+             BufferedReader reader = new BufferedReader(new InputStreamReader(is, "GBK"))) {
             
             String line;
             boolean isFirst = true;
@@ -657,7 +672,6 @@ public class MainActivity extends AppCompatActivity {
             CalendarDay empty = new CalendarDay();
             empty.isEmpty = true;
             empty.dateStr = LocalDate.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd", Locale.getDefault()));
-            empty.dateStr = LocalDate.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd", Locale.getDefault()));
             // 清空班组信息
             empty.dayTeams = new ArrayList<>();
             empty.nightTeams = new ArrayList<>();
@@ -697,7 +711,6 @@ public class MainActivity extends AppCompatActivity {
             CalendarDay empty = new CalendarDay();
             empty.isEmpty = true;
             empty.dateStr = LocalDate.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd", Locale.getDefault()));
-            empty.dateStr = LocalDate.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd", Locale.getDefault()));
             // 清空班组信息
             empty.dayTeams = new ArrayList<>();
             empty.nightTeams = new ArrayList<>();
@@ -706,36 +719,7 @@ public class MainActivity extends AppCompatActivity {
         return result;
     }
 
-    private List<String> generateWeeknumColumn(List<CalendarDay> days) {
-    List<String> result = new ArrayList<>();
-    int currentMonth = -1;
-    String prevWeeknum = "";
-    
-    for (int i = 0; i < days.size(); i++) {
-        if (i % 7 == 0) {
-            CalendarDay day = days.get(i);
-            String weeknum = "";
-            
-            // 处理跨月周数
-            if (day.isEmpty && !day.prevMonthLastWeeknum.isEmpty()) {
-                weeknum = "Week" + day.prevMonthLastWeeknum;
-            } else if (day.weeknum != null && !day.weeknum.isEmpty()) {
-                weeknum = "Week" + day.weeknum;
-            } else if ((i == 0 || days.get(i-1).date.getMonthValue() != day.date.getMonthValue()) && day.weeknum != null) {
-                // 处理月初第一周
-                weeknum = "Week" + day.weeknum;
-            }
-            
-            // 添加非空周数到结果
-            result.add(weeknum);
-        } else {
-            result.add("");
-        }
-    }
-    return result;
-}
-
-    private void initPermissionRequests() {
+   private void initPermissionRequests() {
         notificationPermissionLauncher = registerForActivityResult(
             new ActivityResultContracts.RequestPermission(),
             isGranted -> {

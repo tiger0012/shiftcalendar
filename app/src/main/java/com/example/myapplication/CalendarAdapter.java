@@ -2,6 +2,7 @@ package com.example.myapplication;
 
 import android.content.Context;
 import android.graphics.Color;
+import android.graphics.drawable.GradientDrawable;
 import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.View;
@@ -25,6 +26,8 @@ public class CalendarAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolde
 
     private List<CalendarDay> days;
     private Map<Integer, String> weeknumCache = new HashMap<>();
+    /** 行高（按可用高度/行数计算，保证整月填满不滚动） */
+    private int rowHeightPx = 0;
 
     public CalendarAdapter(List<CalendarDay> days) {
         this.days = days;
@@ -35,6 +38,14 @@ public class CalendarAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolde
         this.days = newDays;
         precomputeWeeknumCache();
         notifyDataSetChanged();
+    }
+
+    public void setRowHeight(int px) {
+        this.rowHeightPx = px;
+    }
+
+    public int getRowHeight() {
+        return this.rowHeightPx;
     }
 
     @Override
@@ -114,8 +125,19 @@ private void precomputeWeeknumCache() {
         return "";
     }
 
+    private void applyRowHeight(View itemView) {
+        if (rowHeightPx > 0) {
+            ViewGroup.LayoutParams lp = itemView.getLayoutParams();
+            if (lp != null) {
+                lp.height = rowHeightPx;
+                itemView.setLayoutParams(lp);
+            }
+        }
+    }
+
     @Override
     public void onBindViewHolder(RecyclerView.ViewHolder holder, int position) {
+    applyRowHeight(holder.itemView);
     int viewType = getItemViewType(position);
     if (viewType == VIEW_TYPE_WEEKNUM_HEADER) {
         WeeknumHeaderViewHolder weeknumHolder = (WeeknumHeaderViewHolder) holder;
@@ -138,8 +160,6 @@ private void precomputeWeeknumCache() {
 
         if (day.getIsEmpty()) {
             dayHolder.tvDay.setText("");
-            if (dayHolder.tvDayTeams != null) dayHolder.tvDayTeams.setText("");
-            if (dayHolder.tvNightTeams != null) dayHolder.tvNightTeams.setText("");
             dayHolder.teamContainerDay.removeAllViews();
             dayHolder.teamContainerNight.removeAllViews();
             dayHolder.itemView.setBackgroundColor(Color.TRANSPARENT);
@@ -234,45 +254,46 @@ private void precomputeWeeknumCache() {
         container.removeAllViews();
         for (String team : teams) {
             TextView teamView = new TextView(context);
-            teamView.setLayoutParams(new LinearLayout.LayoutParams(
+            LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT,
-                ViewGroup.LayoutParams.WRAP_CONTENT, 1.0f));
-            teamView.setTextSize(12);
-            teamView.setPadding(4, 2, 4, 2);
+                ViewGroup.LayoutParams.WRAP_CONTENT, 1.0f);
+            lp.setMargins(1, 1, 1, 1);
+            teamView.setLayoutParams(lp);
+            teamView.setTextSize(11);
+            teamView.setIncludeFontPadding(false);
+            teamView.setPadding(6, 2, 6, 2);
+            teamView.setGravity(android.view.Gravity.CENTER);
             teamView.setText(team);
             setTeamBackground(teamView, team);
             container.addView(teamView);
         }
     }
-    
+
     private void setTeamBackground(TextView textView, String team) {
         String teamNumber = team.replaceAll("\\D+", "");
         int teamIndex = (Integer.parseInt(teamNumber.isEmpty() ? "0" : teamNumber) - 1) % 7 + 1;
         Integer colorRes = TEAM_COLOR_MAP.getOrDefault(String.valueOf(teamIndex), R.color.team_default);
-        textView.setBackgroundColor(ContextCompat.getColor(textView.getContext(), colorRes));
-        textView.setPadding(8, 4, 8, 4);
+        int color = ContextCompat.getColor(textView.getContext(), colorRes);
+        GradientDrawable pill = new GradientDrawable();
+        pill.setShape(GradientDrawable.RECTANGLE);
+        pill.setCornerRadius(textView.getContext().getResources().getDisplayMetrics().density * 6);
+        pill.setColor(color);
+        textView.setBackground(pill);
+        // 文字颜色保持原样（黑色）
         textView.setTextColor(ContextCompat.getColor(textView.getContext(), R.color.black));
     }
 
+
 static class DayViewHolder extends RecyclerView.ViewHolder {
-    TextView tvDay, tvDayTeams, tvNightTeams;
+    TextView tvDay;
     LinearLayout teamContainerDay, teamContainerNight;
 
     DayViewHolder(View itemView) {
         super(itemView);
         tvDay = itemView.findViewById(R.id.tv_day);
-        tvDayTeams = itemView.findViewById(R.id.tv_day_teams);
-        tvNightTeams = itemView.findViewById(R.id.tv_night_teams);
         teamContainerDay = itemView.findViewById(R.id.teamContainerDay);
         teamContainerNight = itemView.findViewById(R.id.teamContainerNight);
     }
 }
 
-    private String joinTeams(List<String> teams) {
-        StringBuilder sb = new StringBuilder();
-        for (String t : teams) {
-            sb.append(t).append(" ");
-        }
-        return sb.toString().trim();
-    }
 }

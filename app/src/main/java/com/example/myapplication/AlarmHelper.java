@@ -4,7 +4,6 @@ import android.app.AlarmManager;
 import android.app.NotificationChannel;
 import android.app.NotificationManager;
 import android.app.PendingIntent;
-import android.content.ComponentName;
 import android.content.ContentValues;
 import android.content.ContentResolver;
 import android.content.Context;
@@ -12,7 +11,6 @@ import android.content.Intent;
 import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
 import android.Manifest;
-import android.net.Uri;
 import android.os.Build;
 import android.provider.AlarmClock;
 import android.media.RingtoneManager;
@@ -44,7 +42,6 @@ public class AlarmHelper {
     private static final String DND_TIMEOUT_CHANNEL_NAME = "勿扰定时兜底";
     private static final int NOTIFICATION_ID = 1;
     private static final int DND_TIMEOUT_NOTIFICATION_ID = 8888;
-    private static final String MIUI_ALARM_AUTHORITY = "com.android.deskclock.MyAiActionProvider";
     private static final String MIUI_ALARM_TYPE = "urn:aiot-spec-v3:com.mi.phones:action:[com.android.deskclock/deskclock/alarm]:0:2.0";
 
     public static void setShiftAlarm(Context context, String team, boolean isDayShift, List<DayShiftGroup> currentWeekData, int hour, int minute) {
@@ -59,8 +56,9 @@ public class AlarmHelper {
         if (!PermissionHelper.checkNotificationPermission(context)) {
             Log.e(TAG, "没有发送通知的权限");
             Toast.makeText(context, "需要通知权限才能发送班次提醒", Toast.LENGTH_LONG).show();
-            if (context instanceof AppCompatActivity) {
-                PermissionHelper.requestNotificationPermission((AppCompatActivity) context, 
+            if (context instanceof MainActivity) {
+                // MainActivity 已注册 ActivityResultLauncher，可以原地申请权限
+                PermissionHelper.requestNotificationPermission((MainActivity) context,
                     ((MainActivity) context).getNotificationPermissionLauncher(),
                     new PermissionHelper.PermissionCallback() {
                         @Override
@@ -74,6 +72,10 @@ public class AlarmHelper {
                             Log.e(TAG, "通知权限被拒绝");
                         }
                     });
+            } else {
+                // 其它 Activity（如 AlarmSettingsActivity）没有注册 Launcher，
+                // 直接引导用户到系统设置手动开启，避免 ClassCastException
+                PermissionHelper.openAppSettings(context);
             }
             return;
         }

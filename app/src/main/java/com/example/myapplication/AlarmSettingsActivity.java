@@ -234,7 +234,9 @@ public class AlarmSettingsActivity extends AppCompatActivity {
             napMinute,
             true
         );
-        timePickerDialog.getWindow().setBackgroundDrawableResource(android.R.color.transparent);
+        if (timePickerDialog.getWindow() != null) {
+            timePickerDialog.getWindow().setBackgroundDrawableResource(android.R.color.transparent);
+        }
         timePickerDialog.show();
     }
 
