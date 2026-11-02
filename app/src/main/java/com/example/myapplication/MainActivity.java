@@ -28,6 +28,7 @@ import java.text.SimpleDateFormat;
 import java.time.*;
 import java.time.format.TextStyle;
 import java.time.format.DateTimeFormatter;
+import java.time.temporal.ChronoUnit;
 import java.time.temporal.TemporalAdjusters;
 import java.util.*;
 import java.text.ParseException;
@@ -496,6 +497,8 @@ public class MainActivity extends AppCompatActivity {
     private Map<String, DayShiftGroup> readShiftGroupsFromCSV() {
         Map<String, DayShiftGroup> map = new LinkedHashMap<>();
         SimpleDateFormat csvDateFormat = new SimpleDateFormat("yyyy/M/d", Locale.getDefault());
+        // 部分数据段（如 2027 年段）日期为横杠格式 "yyyy-M-d"，需回退解析
+        SimpleDateFormat csvDashFormat = new SimpleDateFormat("yyyy-M-d", Locale.getDefault());
         SimpleDateFormat targetDateFormat = new SimpleDateFormat("yyyy-MM-dd", Locale.getDefault());
 
         // 注意：shift.csv 为 GBK 编码（Excel 导出），若未来导出为 UTF-8 请改回 "UTF-8"
@@ -532,8 +535,14 @@ public class MainActivity extends AppCompatActivity {
                 String weeknum = tokens[weeknumIndex].trim();
                 String csvDateString = tokens[1].trim();
                 String date = null;
+                // 先尝试斜杠格式 "yyyy/M/d"，失败后回退横杠格式 "yyyy-M-d"
                 try {
-                    Date parsedDate = csvDateFormat.parse(csvDateString);
+                    Date parsedDate = null;
+                    try {
+                        parsedDate = csvDateFormat.parse(csvDateString);
+                    } catch (ParseException ignoreSlash) {
+                        parsedDate = csvDashFormat.parse(csvDateString);
+                    }
                     date = targetDateFormat.format(parsedDate);
                 } catch (ParseException e) {
                     e.printStackTrace();
@@ -544,6 +553,13 @@ public class MainActivity extends AppCompatActivity {
                 String team = tokens[2].trim();
                 DayShiftGroup group = map.computeIfAbsent(date, k -> new DayShiftGroup());
                 group.date = date;
+                // "0" 是未计算周数的占位值（2027 数据段）：按惯例补全——
+                // 含 1 月 1 日的那一周（周日起始）为当年第 1 周，一年共 52 周。
+                // 与 2025/2026 跨年边界行为一致：跨年周中新年一侧的编号（后写入者）生效，
+                // 即 2026-12-27~31 这段"第53周"将显示为 2027 年第 1 周。
+                if (weeknum.isEmpty() || weeknum.equals("0")) {
+                    weeknum = computeYearWeeknum(date);
+                }
                 group.weeknum = weeknum;
                 // 读取Holiday列（L列）并设置是否为假期
                 if (holidayIndex != -1 && holidayIndex < tokens.length) {
@@ -561,6 +577,69 @@ public class MainActivity extends AppCompatActivity {
             e.printStackTrace();
         }
         
+        return map;
+    }
+
+    /**
+     * 为未计算周数的数据段（CSV 中 Weeknum=0，如 2027 段）补全年周数。
+     * 规则（与 CSV 中 2025/2026 段的实际编号惯例一致）：
+     * - 一周从周日开始；
+     * - 跨年过渡周：某周内部含有下一年 1 月 1 日（如 2026-12-27 起、
+     *   2027-01-01 属周五的那一周），整周算下一年的第 1 周——
+     *   即 2026 年的"第 53 周"显示为 2027 年第 1 周
+     *   （先例：2025-12-28~31 在 UI 上显示为 2026 年第 1 周）；
+     * - 其余日期：含该年 1 月 1 日的那一周 = 当年第 1 周；
+     * - 一年共 52 周：年末不足一周的尾巴（如 2027-12-27~31）并入第 52 周。
+     * 返回 "" 表示无法计算（UI 将隐藏周标签）。
+     */
+    private static String computeYearWeeknum(String isoDate) {
+        try {
+            LocalDate day = LocalDate.parse(isoDate);
+            // 距周日 0..6 天（DayOfWeek: Mon=1..Sun=7）
+            LocalDate thisWeekStart = day.minusDays(day.getDayOfWeek().getValue() % 7);
+            // 跨年过渡周：本周包含下一年 1 月 1 日（1 月 1 日严格落在本周内部）
+            LocalDate nextJan1 = LocalDate.of(day.getYear() + 1, 1, 1);
+            if (thisWeekStart.isBefore(nextJan1) && thisWeekStart.plusDays(6).isAfter(nextJan1)) {
+                return "1";
+            }
+            LocalDate jan1 = LocalDate.of(day.getYear(), 1, 1);
+            LocalDate firstWeekStart = jan1.minusDays(jan1.getDayOfWeek().getValue() % 7);
+            int week = (int) ChronoUnit.WEEKS.between(firstWeekStart, thisWeekStart) + 1;
+            return week > 52 ? "52" : String.valueOf(week);
+        } catch (Exception e) {
+            return "";
+        }
+    }
+
+    /**
+     * 2027 年节假日名称本地回退表。
+     * 节假日库 cn.6tail:lunar:1.7.7 的内置数据只到 2026-10（作者在次年 11 月左右补充下一年数据），
+     * 导致 2027 年节假日只能靠 CSV 的 Holiday 列显示红底、但没有节日名称。
+     * 此表与 CSV 中 2027 年 Holiday=Y 的 13 个日期一一对应（已逐一核对），
+     * 等库发布 2027 数据后升级依赖即可删除此回退。
+     */
+    private static java.util.Map<String, String> get2027HolidayNames() {
+        java.util.Map<String, String> map = new java.util.HashMap<>();
+        // 元旦（1/1）
+        map.put("2027-01-01", "元旦");
+        // 春节（除夕 2/5、正月初一 2/6，预估 2/5-2/8）
+        map.put("2027-02-05", "春节");
+        map.put("2027-02-06", "春节");
+        map.put("2027-02-07", "春节");
+        map.put("2027-02-08", "春节");
+        // 清明节（4/5）
+        map.put("2027-04-05", "清明节");
+        // 劳动节（5/1，预估 5/1-5/2）
+        map.put("2027-05-01", "劳动节");
+        map.put("2027-05-02", "劳动节");
+        // 端午节（6/9，五月初五）
+        map.put("2027-06-09", "端午节");
+        // 中秋节（9/15，八月十五）
+        map.put("2027-09-15", "中秋节");
+        // 国庆节（10/1，预估 10/1-10/3）
+        map.put("2027-10-01", "国庆节");
+        map.put("2027-10-02", "国庆节");
+        map.put("2027-10-03", "国庆节");
         return map;
     }
 
@@ -603,6 +682,17 @@ public class MainActivity extends AppCompatActivity {
                 holidayName = holiday.getName();
                 Log.d("MainActivity", "holidayName: " + holidayName); // 打印holidayName的值
                 holidayTarget = holiday.getTarget();
+            }
+            // 节假日库（cn.6tail:lunar）数据只到 2026-10，2027 年无节日数据。
+            // 此处用本地映射回退 2027 节日名称（与 CSV 中 Holiday=Y 的日期一一对应），
+            // 等库作者发布 2027 数据后升级依赖即可移除本回退。
+            if (holidayName.isEmpty()) {
+                java.util.Map<String, String> fallback = get2027HolidayNames();
+                String name = fallback.get(dateStr);
+                if (name != null) {
+                    holidayName = name;
+                    Log.d("MainActivity", "holidayName fallback(2027): " + holidayName);
+                }
             }
             String lunarDateStr = lunar.toString().substring(lunar.toString().indexOf("年") + 1);
             int lunarBgColor = R.color.transparent; // 默认背景色

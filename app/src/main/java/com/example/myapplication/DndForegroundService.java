@@ -204,6 +204,7 @@ public class DndForegroundService extends Service {
                 Log.d(TAG, "\u52ff\u6270\u5df2\u5173\u95ed\uff0c\u8df3\u8fc7\u91cd\u590d\u6267\u884c");
                 cancelCheckAlarm();
                 cancelBroadcastEndAlarm(this);
+                ScreenStateReceiver.unregister(this);
                 stopForeground(true);
                 stopSelf();
                 return;
@@ -226,6 +227,7 @@ public class DndForegroundService extends Service {
 
             try { MainActivity.setDndAlarms(this); } catch (Exception ignored) {}
             AlarmHelper.cancelDndTimeoutNotification(this);
+            ScreenStateReceiver.unregister(this);
 
             stopForeground(true);
             stopSelf();

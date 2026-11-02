@@ -19,6 +19,23 @@ public class ScreenStateReceiver extends BroadcastReceiver {
     private static BroadcastReceiver screenReceiver = null;
     private static boolean isRegistered = false;
 
+    /**
+     * 注册屏幕状态监听（供 DndAlarmReceiver / NapAlarmReceiver 等外部调用）。
+     * 通过广播到清单注册的接收器，由它在进程内动态注册真正的监听器。
+     */
+    public static void register(Context context) {
+        Intent intent = new Intent(context, ScreenStateReceiver.class);
+        intent.setAction("com.example.myapplication.ACTION_SCREEN_STATE_CHANGE");
+        context.sendBroadcast(intent);
+    }
+
+    /** 注销屏幕状态监听 */
+    public static void unregister(Context context) {
+        Intent intent = new Intent(context, ScreenStateReceiver.class);
+        intent.setAction("com.example.myapplication.ACTION_SCREEN_STATE_UNREGISTER");
+        context.sendBroadcast(intent);
+    }
+
     @Override
     public void onReceive(Context context, Intent intent) {
         String action = intent.getAction();

@@ -52,40 +52,17 @@ public class NapAlarmReceiver extends BroadcastReceiver {
         Log.d(TAG, "当前勿扰状态: " + getInterruptionFilterName(currentFilter));
 
         if (isStart) {
-            // 已处于勿扰则不重复设置
+            // ★ 无论当前是否已处于勿扰，都必须先确保午睡结束闹钟存在。
+            //   修复：旧逻辑在"已处于勿扰"（如常规勿扰进行中）时直接 return，
+            //   午睡结束闹钟未设置 → 午睡结束后勿扰无法按午睡结束时间关闭。
+            scheduleNapEndAlarm(context);
+
+            // 已处于勿扰则不重复设置系统勿扰
             if (currentFilter != NotificationManager.INTERRUPTION_FILTER_ALL
                 && currentFilter != NotificationManager.INTERRUPTION_FILTER_UNKNOWN) {
-                Log.d(TAG, "已处于勿扰模式，不重复设置");
+                Log.d(TAG, "已处于勿扰模式，不重复设置（结束闹钟已确保存在）");
+                registerScreenStateReceiver(context);
                 return;
-            }
-
-            // ★ 用广播方式设置午睡结束闹钟（不用 ForegroundService，避免 ColorOS 拦截）
-            SharedPreferences napPrefs = context.getSharedPreferences("nap_settings", Context.MODE_PRIVATE);
-            long napEndTime = napPrefs.getLong("nap_end_time", -1);
-            if (napEndTime > System.currentTimeMillis()) {
-                Intent endIntent = new Intent(context, NapAlarmReceiver.class);
-                endIntent.setAction(ACTION_NAP_ALARM_END);
-                PendingIntent endPi = PendingIntent.getBroadcast(
-                        context, 1002, endIntent,
-                        PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE
-                );
-                AlarmManager am = (AlarmManager) context.getSystemService(Context.ALARM_SERVICE);
-                if (am != null) {
-                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-                        am.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, napEndTime, endPi);
-                    } else {
-                        am.setExact(AlarmManager.RTC_WAKEUP, napEndTime, endPi);
-                    }
-                    Calendar cal = Calendar.getInstance();
-                    cal.setTimeInMillis(napEndTime);
-                    Log.d(TAG, "⏰ 已设午睡结束广播闹钟 → "
-                            + cal.get(Calendar.HOUR_OF_DAY) + ":"
-                            + String.format("%02d", cal.get(Calendar.MINUTE)));
-                }
-            } else if (napEndTime > 0) {
-                Log.w(TAG, "⏰ 午睡结束时间已过，不设闹钟");
-            } else {
-                Log.w(TAG, "⚠ 未找到 nap_end_time，依赖 setNapDoNotDisturb 中的兜底闹钟");
             }
 
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
@@ -125,6 +102,39 @@ public class NapAlarmReceiver extends BroadcastReceiver {
             unregisterScreenStateReceiver(context);
             AlarmHelper.createDndSettingNotification(context, "午睡勿扰已结束", "系统勿扰模式已关闭");
             Toast.makeText(context, "午睡勿扰已结束", Toast.LENGTH_SHORT).show();
+        }
+    }
+
+    /**
+     * 用广播方式设置午睡结束闹钟（不用 ForegroundService，避免 ColorOS 拦截）
+     */
+    private void scheduleNapEndAlarm(Context context) {
+        SharedPreferences napPrefs = context.getSharedPreferences("nap_settings", Context.MODE_PRIVATE);
+        long napEndTime = napPrefs.getLong("nap_end_time", -1);
+        if (napEndTime > System.currentTimeMillis()) {
+            Intent endIntent = new Intent(context, NapAlarmReceiver.class);
+            endIntent.setAction(ACTION_NAP_ALARM_END);
+            PendingIntent endPi = PendingIntent.getBroadcast(
+                    context, 1002, endIntent,
+                    PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE
+            );
+            AlarmManager am = (AlarmManager) context.getSystemService(Context.ALARM_SERVICE);
+            if (am != null) {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                    am.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, napEndTime, endPi);
+                } else {
+                    am.setExact(AlarmManager.RTC_WAKEUP, napEndTime, endPi);
+                }
+                Calendar cal = Calendar.getInstance();
+                cal.setTimeInMillis(napEndTime);
+                Log.d(TAG, "⏰ 已设午睡结束广播闹钟 → "
+                        + cal.get(Calendar.HOUR_OF_DAY) + ":"
+                        + String.format("%02d", cal.get(Calendar.MINUTE)));
+            }
+        } else if (napEndTime > 0) {
+            Log.w(TAG, "⏰ 午睡结束时间已过，不设闹钟");
+        } else {
+            Log.w(TAG, "⚠ 未找到 nap_end_time，依赖 setNapDoNotDisturb 中的兜底闹钟");
         }
     }
 
