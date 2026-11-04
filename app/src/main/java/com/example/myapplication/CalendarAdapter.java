@@ -168,7 +168,16 @@ private void precomputeWeeknumCache() {
                 // 组合公历、农历和节假日信息，使用工具类方法
                 String displayText = DateDisplayUtils.getDayDisplayText(day.dayOfMonth, day.getLunarDate(), day.isHoliday(), day.getHolidayName());
                 // 已通过工具类生成完整显示文本，设置到TextView
-                dayHolder.tvDay.setText(displayText);
+                if (day.isHoliday() && !TextUtils.isEmpty(day.getHolidayName()) && displayText.contains("\n")) {
+                    // 节假日：节假日名行加粗突出（节假日时农历已被节假日名替换）
+                    int start = displayText.indexOf('\n') + 1;
+                    android.text.SpannableString ss = new android.text.SpannableString(displayText);
+                    ss.setSpan(new android.text.style.StyleSpan(android.graphics.Typeface.BOLD),
+                            start, displayText.length(), android.text.Spannable.SPAN_EXCLUSIVE_EXCLUSIVE);
+                    dayHolder.tvDay.setText(ss);
+                } else {
+                    dayHolder.tvDay.setText(displayText);
+                }
 
                 // 添加日志检查参数是否传入
                 android.util.Log.d("CalendarAdapter", "当前日期参数：公历=" + day.dayOfMonth + ", 农历=" + day.getLunarDate() + ", 节假日=" + day.isHoliday()+  day.getHolidayName() + ", 今天=" + day.isToday);

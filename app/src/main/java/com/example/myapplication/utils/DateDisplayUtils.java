@@ -7,13 +7,12 @@ public class DateDisplayUtils {
         // 使用TextUtils判断空字符串
         StringBuilder sb = new StringBuilder();
         sb.append(solarDay);
-        if (!TextUtils.isEmpty(lunarDate)) {
+        if (isHoliday && !TextUtils.isEmpty(holidayName)) {
+            // 节假日：用节假日名替换农历显示（与小程序 2.2.0 一致），
+            // 同时保持两行以内（tv_day maxLines=2）
+            sb.append("\n").append(holidayName);
+        } else if (!TextUtils.isEmpty(lunarDate)) {
             sb.append("\n").append(lunarDate);
-        }
-        if (isHoliday) {
-            if (!TextUtils.isEmpty(holidayName)) {
-                sb.append("\n").append(holidayName);
-            }
         }
         return sb.toString();
     }
