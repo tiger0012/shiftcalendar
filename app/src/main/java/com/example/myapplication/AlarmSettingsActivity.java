@@ -527,6 +527,9 @@ public class AlarmSettingsActivity extends AppCompatActivity {
                 return;
             }
 
+            // === 午睡勿扰同样依赖 App 存活，国产 ROM 需要白名单 ===
+            checkAndShowWhitelistGuide();
+
             try {
                 // 获取选择的午睡时长
                 int totalMinutes = napHour * 60 + napMinute;
@@ -649,24 +652,36 @@ public class AlarmSettingsActivity extends AppCompatActivity {
 
     // ==================== 白名单引导相关 ====================
 
-    private static final String PREF_WHITELIST_SHOWN = "whitelist_guide_shown";
+    private static final String PREF_WHITELIST_SHOWN_AT = "whitelist_guide_shown_at";
+    /** 白名单引导 1 小时内不重复弹（每次设置勿扰都会检查，不会永久消失） */
+    private static final long WHITELIST_RESHOW_INTERVAL_MS = 60 * 60 * 1000L;
 
     /**
-     * 检查是否需要显示白名单引导
+     * 检查是否需要显示白名单引导。
+     * 每次设置勿扰都会调用；国产 ROM 上只要距上次提示超过 1 小时就重新弹。
+     * （修复：此前只弹一次，点"稍后再说"后永久不再弹，用户从未完成白名单设置，
+     *   导致 App 被杀后勿扰无法自动关闭。）
      */
     private void checkAndShowWhitelistGuide() {
-        // 只在国产 ROM 上提示，且只弹一次
         if (!DeviceCompat.needsWhitelistGuide()) return;
 
         SharedPreferences appPrefs = getSharedPreferences("app_prefs", MODE_PRIVATE);
-        boolean alreadyShown = appPrefs.getBoolean(PREF_WHITELIST_SHOWN, false);
-        if (alreadyShown) return;
+        long lastShown = appPrefs.getLong(PREF_WHITELIST_SHOWN_AT, 0);
+        if (System.currentTimeMillis() - lastShown < WHITELIST_RESHOW_INTERVAL_MS) return;
 
         showWhitelistGuideDialog();
     }
 
+    private void markWhitelistGuideShown() {
+        getSharedPreferences("app_prefs", MODE_PRIVATE)
+            .edit()
+            .putBoolean("whitelist_guide_shown", true)
+            .putLong(PREF_WHITELIST_SHOWN_AT, System.currentTimeMillis())
+            .apply();
+    }
+
     /**
-     * 显示白名单设置引导对话框
+     * 显示白名单设置引导对话框（含直达按钮）。
      */
     private void showWhitelistGuideDialog() {
         String brandName = DeviceCompat.getBrandName();
@@ -674,35 +689,29 @@ public class AlarmSettingsActivity extends AppCompatActivity {
 
         StringBuilder message = new StringBuilder();
         message.append("您的设备是 ").append(brandName).append("。\n\n");
-        message.append("为了确保勿扰模式在 App 被后台清理后仍能自动关闭，建议进行以下设置：\n\n");
+        message.append("⚠️ 此类系统会在 App 被后台清理（最近任务划掉）后拒绝拉起它，\n");
+        message.append("勿扰模式将无法在结束时间自动关闭。\n\n");
+        message.append("请完成以下白名单设置（下方按钮可直达对应设置页）：\n\n");
 
         for (int i = 0; i < steps.size(); i++) {
-            message.append("📌 ").append(steps.get(i));
+            message.append(steps.get(i));
             if (i < steps.size() - 1) message.append("\n\n");
         }
 
         new androidx.appcompat.app.AlertDialog.Builder(this)
-            .setTitle("⚡ 后台运行优化建议")
+            .setTitle("⚠️ 需要给本应用加白名单")
             .setMessage(message.toString())
-            .setPositiveButton("一键跳转电池设置", (dialog, which) -> {
-                // 先标记已展示过
-                getSharedPreferences("app_prefs", MODE_PRIVATE)
-                    .edit().putBoolean(PREF_WHITELIST_SHOWN, true).apply();
-
-                // 跳转到电池优化设置
-                Intent intent = DeviceCompat.openBatteryOptimization(this);
+            .setPositiveButton("已完成/我知道了", (dialog, which) -> markWhitelistGuideShown())
+            .setNegativeButton("打开自启动设置", (dialog, which) -> {
+                markWhitelistGuideShown();
+                Intent intent = DeviceCompat.openAutoLaunchSettings(this);
+                if (intent == null) intent = DeviceCompat.openAppDetailSettings(this);
                 if (intent != null) startActivity(intent);
             })
-            .setNegativeButton("稍后再说", (dialog, which) -> {
-                // 标记已看过，不再弹出
-                getSharedPreferences("app_prefs", MODE_PRIVATE)
-                    .edit().putBoolean(PREF_WHITELIST_SHOWN, true).apply();
-            })
-            .setNeutralButton("打开应用详情页", (dialog, which) -> {
-                getSharedPreferences("app_prefs", MODE_PRIVATE)
-                    .edit().putBoolean(PREF_WHITELIST_SHOWN, true).apply();
-
-                Intent intent = DeviceCompat.openAppDetailSettings(this);
+            .setNeutralButton("打开电池设置", (dialog, which) -> {
+                markWhitelistGuideShown();
+                Intent intent = DeviceCompat.openBatteryOptimization(this);
+                if (intent == null) intent = DeviceCompat.openAppDetailSettings(this);
                 if (intent != null) startActivity(intent);
             })
             .setCancelable(false)

@@ -1077,27 +1077,33 @@ public class MainActivity extends AppCompatActivity {
             intent.putExtra("ENABLE_DND", true);
             PendingIntent pendingIntent = PendingIntent.getBroadcast(context, requestCode, intent,
                 PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
-            scheduleAlarmInternal(alarmManager, pendingIntent, timeMillis);
+            scheduleAlarmInternal(alarmManager, pendingIntent, timeMillis, null);
         } else {
             if (requestCode == 1002) {
-                // 主关闭闹钟：透明 Activity，尝试绕过 ColorOS 对 service 启动的拦截
+                // 主关闭闹钟：透明 Activity，尝试绕过 ColorOS 对 service 启动的拦截。
+                // ★ 同时把该 PendingIntent 作为 showAlarmIntent 传入 setAlarmClock：
+                //   闹钟会出现在系统时钟应用的闹钟列表中（用户可见的"真闹钟"），
+                //   国产 ROM 对可见闹钟的存活策略更宽松，到点由时钟应用拉起 DndCloseActivity。
                 Intent intent = new Intent(context, DndCloseActivity.class);
                 PendingIntent pendingIntent = PendingIntent.getActivity(context, requestCode, intent,
                     PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
-                scheduleAlarmInternal(alarmManager, pendingIntent, timeMillis);
+                scheduleAlarmInternal(alarmManager, pendingIntent, timeMillis, pendingIntent);
             } else {
                 // 冗余关闭闹钟：前台服务
                 Intent intent = new Intent(context, DndForegroundService.class);
                 intent.setAction(DndForegroundService.ACTION_DND_OFF);
                 PendingIntent pendingIntent = PendingIntent.getForegroundService(context, requestCode, intent,
                     PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
-                scheduleAlarmInternal(alarmManager, pendingIntent, timeMillis);
+                scheduleAlarmInternal(alarmManager, pendingIntent, timeMillis, null);
             }
         }
         Log.d(TAG, "已设置" + (enable ? "开启" : "关闭") + "闹钟 at " + new Date(timeMillis));
     }
 
-    private static void scheduleAlarmInternal(AlarmManager alarmManager, PendingIntent pendingIntent, long timeMillis) {
+    /**
+     * @param showAlarmIntent 非 null 时闹钟会注册进系统时钟应用（可见闹钟，存活率更高）
+     */
+    private static void scheduleAlarmInternal(AlarmManager alarmManager, PendingIntent pendingIntent, long timeMillis, PendingIntent showAlarmIntent) {
         try {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
                 boolean canScheduleExact = true;
@@ -1106,7 +1112,7 @@ public class MainActivity extends AppCompatActivity {
                 }
 
                 if (canScheduleExact) {
-                    AlarmManager.AlarmClockInfo alarmClockInfo = new AlarmManager.AlarmClockInfo(timeMillis, null);
+                    AlarmManager.AlarmClockInfo alarmClockInfo = new AlarmManager.AlarmClockInfo(timeMillis, showAlarmIntent);
                     alarmManager.setAlarmClock(alarmClockInfo, pendingIntent);
                 } else {
                     alarmManager.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, timeMillis, pendingIntent);
